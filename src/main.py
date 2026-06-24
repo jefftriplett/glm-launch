@@ -36,6 +36,24 @@ def launch_main(ctx: typer.Context) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Z.ai model registry
+# ---------------------------------------------------------------------------
+
+# Current Z.ai GLM models (API IDs are lowercase). Kept here so `models` and
+# the help text stay in one place. See https://z.ai/model-api
+ZAI_MODELS: list[tuple[str, str]] = [
+    ("glm-5.2", "Flagship — frontier reasoning, coding, and agentic tasks"),
+    ("glm-5.1", "Long-horizon agentic flagship (200K context)"),
+    ("glm-5", "GLM-5 flagship"),
+    ("glm-5-turbo", "Speed-optimized GLM-5 variant"),
+    ("glm-4.7", "Balanced cost/performance coding model"),
+    ("glm-4.6", "Strong coding model, 200K context"),
+    ("glm-4.5", "Previous-gen general model"),
+    ("glm-4.5-air", "Lightweight, low-cost (good for subagents/haiku tier)"),
+]
+
+
+# ---------------------------------------------------------------------------
 # Binary resolution helpers
 # ---------------------------------------------------------------------------
 
@@ -54,6 +72,41 @@ def _find_binary(name: str, fallback_path: str | None = None) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Claude / GLM environment
+# ---------------------------------------------------------------------------
+
+
+def _build_claude_env(
+    *,
+    model: str,
+    base_url: str,
+    api_key: str,
+    auth_token: str,
+    api_timeout_ms: str,
+    default_haiku_model: str,
+    default_sonnet_model: str,
+    default_opus_model: str,
+    subagent_model: str,
+    effort_level: str,
+) -> dict[str, str]:
+    """Build the GLM env vars claude needs to talk to Z.ai."""
+    env = {
+        "ANTHROPIC_BASE_URL": base_url,
+        "ANTHROPIC_API_KEY": api_key,
+        "ANTHROPIC_AUTH_TOKEN": auth_token,
+        "API_TIMEOUT_MS": api_timeout_ms,
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": default_haiku_model,
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": default_sonnet_model,
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": default_opus_model,
+        "CLAUDE_CODE_SUBAGENT_MODEL": subagent_model,
+        "CLAUDE_CODE_EFFORT_LEVEL": effort_level,
+    }
+    if model:
+        env["ANTHROPIC_MODEL"] = model
+    return env
+
+
+# ---------------------------------------------------------------------------
 # launch claude
 # ---------------------------------------------------------------------------
 
@@ -64,7 +117,7 @@ def _find_binary(name: str, fallback_path: str | None = None) -> str:
 )
 def launch_claude(
     ctx: typer.Context,
-    model: str = typer.Option("glm-4.7", "--model", "-m", help="Model name to pass to claude"),
+    model: str = typer.Option("glm-5.2", "--model", "-m", help="Model name to pass to claude"),
     base_url: str = typer.Option(
         "https://api.z.ai/api/anthropic",
         "--base-url",
@@ -96,13 +149,13 @@ def launch_claude(
         help="Default model for Haiku-tier requests",
     ),
     default_sonnet_model: str = typer.Option(
-        "glm-4.7",
+        "glm-5.2",
         "--default-sonnet-model",
         envvar="ANTHROPIC_DEFAULT_SONNET_MODEL",
         help="Default model for Sonnet-tier requests",
     ),
     default_opus_model: str = typer.Option(
-        "glm-4.7",
+        "glm-5.2",
         "--default-opus-model",
         envvar="ANTHROPIC_DEFAULT_OPUS_MODEL",
         help="Default model for Opus-tier requests",
@@ -124,15 +177,20 @@ def launch_claude(
     binary = _find_binary("claude", "~/.claude/local/claude")
 
     env = os.environ.copy()
-    env["ANTHROPIC_BASE_URL"] = base_url
-    env["ANTHROPIC_API_KEY"] = api_key
-    env["ANTHROPIC_AUTH_TOKEN"] = auth_token
-    env["API_TIMEOUT_MS"] = api_timeout_ms
-    env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = default_haiku_model
-    env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = default_sonnet_model
-    env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = default_opus_model
-    env["CLAUDE_CODE_SUBAGENT_MODEL"] = subagent_model
-    env["CLAUDE_CODE_EFFORT_LEVEL"] = effort_level
+    env.update(
+        _build_claude_env(
+            model=model,
+            base_url=base_url,
+            api_key=api_key,
+            auth_token=auth_token,
+            api_timeout_ms=api_timeout_ms,
+            default_haiku_model=default_haiku_model,
+            default_sonnet_model=default_sonnet_model,
+            default_opus_model=default_opus_model,
+            subagent_model=subagent_model,
+            effort_level=effort_level,
+        )
+    )
 
     cmd_args = [binary]
     if model:
@@ -255,13 +313,138 @@ def launch_opencode(
 
 
 # ---------------------------------------------------------------------------
+# shell
+# ---------------------------------------------------------------------------
+
+
+def _shell_quote(value: str) -> str:
+    """Single-quote a value safely for POSIX shell eval."""
+    return "'" + value.replace("'", "'\"'\"'") + "'"
+
+
+@app.command()
+def shell(
+    model: str = typer.Option("glm-5.2", "--model", "-m", help="Top-level model (ANTHROPIC_MODEL)"),
+    base_url: str = typer.Option(
+        "https://api.z.ai/api/anthropic",
+        "--base-url",
+        envvar="GLM_BASE_URL",
+        help="Base URL for the API endpoint",
+    ),
+    api_key: str = typer.Option("", "--api-key", envvar="GLM_API_KEY", help="API key"),
+    auth_token: str = typer.Option(..., "--auth-token", envvar="GLM_AUTH_TOKEN", help="Auth token"),
+    api_timeout_ms: str = typer.Option("3000000", "--api-timeout-ms", envvar="API_TIMEOUT_MS"),
+    default_haiku_model: str = typer.Option("glm-4.5-air", "--default-haiku-model", envvar="ANTHROPIC_DEFAULT_HAIKU_MODEL"),
+    default_sonnet_model: str = typer.Option("glm-5.2", "--default-sonnet-model", envvar="ANTHROPIC_DEFAULT_SONNET_MODEL"),
+    default_opus_model: str = typer.Option("glm-5.2", "--default-opus-model", envvar="ANTHROPIC_DEFAULT_OPUS_MODEL"),
+    subagent_model: str = typer.Option("glm-4.5-air", "--subagent-model", envvar="CLAUDE_CODE_SUBAGENT_MODEL"),
+    effort_level: str = typer.Option("max", "--effort-level", envvar="CLAUDE_CODE_EFFORT_LEVEL"),
+) -> None:
+    """Print `export` lines to bootstrap the current shell for Z.ai.
+
+    Eval the output to configure your shell so a plain `claude` uses Z.ai:
+
+        eval "$(uv run src/main.py shell)"
+    """
+    env = _build_claude_env(
+        model=model,
+        base_url=base_url,
+        api_key=api_key,
+        auth_token=auth_token,
+        api_timeout_ms=api_timeout_ms,
+        default_haiku_model=default_haiku_model,
+        default_sonnet_model=default_sonnet_model,
+        default_opus_model=default_opus_model,
+        subagent_model=subagent_model,
+        effort_level=effort_level,
+    )
+    for key, value in env.items():
+        if value:
+            print(f"export {key}={_shell_quote(value)}")
+
+
+# ---------------------------------------------------------------------------
+# models
+# ---------------------------------------------------------------------------
+
+
+def _fetch_remote_models(models_url: str, auth_token: str, timeout: float) -> list[str]:
+    """Fetch the live model ID list from the Z.ai PaaS /models endpoint."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(
+        models_url,
+        headers={"Authorization": f"Bearer {auth_token}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = json.load(resp)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        msg = f"Failed to fetch models ({e.code})"
+        if body:
+            msg += f": {body[:200]}"
+        raise SystemExit(msg)
+    except urllib.error.URLError as e:
+        raise SystemExit(f"Failed to fetch models: {e.reason}")
+
+    data = payload.get("data", payload) if isinstance(payload, dict) else payload
+    ids = [m.get("id") for m in data if isinstance(m, dict) and m.get("id")]
+    return sorted(ids)
+
+
+@app.command()
+def models(
+    remote: bool = typer.Option(
+        False, "--remote", "-r", help="Fetch the live list from the Z.ai API"
+    ),
+    models_url: str = typer.Option(
+        "https://api.z.ai/api/paas/v4/models",
+        "--models-url",
+        envvar="GLM_MODELS_URL",
+        help="PaaS models endpoint (used with --remote)",
+    ),
+    auth_token: str = typer.Option(
+        "",
+        "--auth-token",
+        envvar="GLM_AUTH_TOKEN",
+        help="Auth token (required with --remote)",
+    ),
+    timeout: float = typer.Option(30.0, "--timeout", help="Request timeout in seconds"),
+) -> None:
+    """List Z.ai GLM models (built-in list, or --remote for the live API list)."""
+    if remote:
+        if not auth_token:
+            raise SystemExit("--remote requires an auth token (--auth-token or GLM_AUTH_TOKEN).")
+        known = dict(ZAI_MODELS)
+        ids = _fetch_remote_models(models_url, auth_token, timeout)
+        if not ids:
+            print(f"No models returned from {models_url}")
+            return
+        print(f"Z.ai models (live from {models_url}):")
+        width = max(len(model_id) for model_id in ids)
+        for model_id in ids:
+            desc = known.get(model_id, "")
+            print(f"  {model_id.ljust(width)}  {desc}".rstrip())
+        return
+
+    print("Z.ai GLM models (use the ID in --model):")
+    width = max(len(model_id) for model_id, _ in ZAI_MODELS)
+    for model_id, desc in ZAI_MODELS:
+        print(f"  {model_id.ljust(width)}  {desc}")
+
+
+# ---------------------------------------------------------------------------
 # bench
 # ---------------------------------------------------------------------------
 
 
 @app.command()
 def bench(
-    model: str = typer.Option("glm-4.7", "--model", "-m", help="Model to benchmark"),
+    model: str = typer.Option("glm-5.2", "--model", "-m", help="Model to benchmark"),
     base_url: str = typer.Option(
         "https://api.z.ai/api/anthropic",
         "--base-url",

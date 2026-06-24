@@ -32,6 +32,15 @@ uv run src/main.py launch claude -- --verbose
 
 # Time a request against the configured GLM endpoint
 uv run src/main.py bench
+
+# List known Z.ai GLM models (built-in list)
+uv run src/main.py models
+
+# Fetch the live model list from the Z.ai API (needs GLM_AUTH_TOKEN)
+uv run src/main.py models --remote
+
+# Bootstrap the current shell with GLM env vars (so a plain `claude` uses Z.ai)
+eval "$(uv run src/main.py shell)"
 ```
 
 ## Architecture

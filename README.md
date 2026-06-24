@@ -20,6 +20,13 @@ export GLM_AUTH_TOKEN="your-zai-api-key"
 uv run src/main.py launch claude
 ```
 
+Or bootstrap your current shell so a plain `claude` uses Z.AI, then run it directly:
+
+```bash
+eval "$(uv run src/main.py shell)"
+claude
+```
+
 ## Commands
 
 ### `launch claude`
@@ -34,14 +41,14 @@ uv run src/main.py launch claude
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
-| `--model` / `-m` | — | `glm-4.7` | Model name passed to `claude --model` |
+| `--model` / `-m` | — | `glm-5.2` | Model name passed to `claude --model` |
 | `--base-url` | `GLM_BASE_URL` | `https://api.z.ai/api/anthropic` | API endpoint |
 | `--api-key` | `GLM_API_KEY` | `""` | API key |
 | `--auth-token` | `GLM_AUTH_TOKEN` | **(required)** | Z.AI auth token |
 | `--api-timeout-ms` | `API_TIMEOUT_MS` | `3000000` | Request timeout in milliseconds |
 | `--default-haiku-model` | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `glm-4.5-air` | Model for Haiku-tier requests |
-| `--default-sonnet-model` | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `glm-4.7` | Model for Sonnet-tier requests |
-| `--default-opus-model` | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `glm-4.7` | Model for Opus-tier requests |
+| `--default-sonnet-model` | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `glm-5.2` | Model for Sonnet-tier requests |
+| `--default-opus-model` | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `glm-5.2` | Model for Opus-tier requests |
 | `--subagent-model` | `CLAUDE_CODE_SUBAGENT_MODEL` | `glm-4.5-air` | Model used for spawned subagents |
 | `--effort-level` | `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort level for the agent loop |
 
@@ -60,7 +67,7 @@ The following env vars are set before exec'ing `claude`:
 **Examples:**
 
 ```bash
-# Use defaults (glm-4.7, Z.AI endpoint)
+# Use defaults (glm-5.2, Z.AI endpoint)
 uv run src/main.py launch claude
 
 # Override the model
@@ -127,6 +134,48 @@ GLM_BASE_URL="http://localhost:11434/v1" uv run src/main.py launch opencode --mo
 uv run src/main.py launch opencode --model "llama3" -- --some-flag
 ```
 
+### `shell`
+
+Print `export` lines that bootstrap your current shell with the GLM env vars — without launching anything. Eval the output and a plain `claude` (or any Anthropic SDK tool) will talk to Z.AI.
+
+```bash
+eval "$(uv run src/main.py shell)"
+claude
+```
+
+Accepts the same model/auth options as `launch claude` (`--model`, `--auth-token`, `--default-*-model`, etc.). Secrets are shell-quoted; empty values are skipped. Sets `ANTHROPIC_MODEL` plus all the `ANTHROPIC_*` / `CLAUDE_CODE_*` vars listed under `launch claude`.
+
+```bash
+# Inspect what would be exported
+uv run src/main.py shell
+
+# Bootstrap with a specific model
+eval "$(uv run src/main.py shell --model glm-5.1)"
+```
+
+### `models`
+
+List Z.AI GLM models. By default prints a built-in, annotated list; `--remote` fetches the live list from the Z.AI PaaS endpoint.
+
+```bash
+# Built-in list (no token needed)
+uv run src/main.py models
+
+# Live list from the API (needs GLM_AUTH_TOKEN)
+uv run src/main.py models --remote
+```
+
+**Options:**
+
+| Flag | Env var | Default | Description |
+|------|---------|---------|-------------|
+| `--remote` / `-r` | — | `false` | Fetch the live list from the Z.AI API |
+| `--models-url` | `GLM_MODELS_URL` | `https://api.z.ai/api/paas/v4/models` | PaaS models endpoint (used with `--remote`) |
+| `--auth-token` | `GLM_AUTH_TOKEN` | — | Auth token (required with `--remote`) |
+| `--timeout` | — | `30.0` | Request timeout in seconds |
+
+The live endpoint is the OpenAI-compatible PaaS base (`/api/paas/v4/models`) and uses `Authorization: Bearer <token>` — distinct from the Anthropic-style chat base (`/api/anthropic`) used by `launch claude` and `bench`.
+
 ### `bench`
 
 Time a single `/v1/messages` round-trip against the configured GLM endpoint. Useful as a sanity check that your auth token, base URL, and chosen model are reachable.
@@ -139,7 +188,7 @@ uv run src/main.py bench
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
-| `--model` / `-m` | — | `glm-4.7` | Model to benchmark |
+| `--model` / `-m` | — | `glm-5.2` | Model to benchmark |
 | `--base-url` | `GLM_BASE_URL` | `https://api.z.ai/api/anthropic` | API endpoint |
 | `--auth-token` | `GLM_AUTH_TOKEN` | **(required)** | Auth token for the endpoint |
 | `--timeout` | — | `30.0` | Request timeout in seconds |
@@ -149,7 +198,7 @@ Sends a minimal 32-token request and prints the round-trip time. Exits non-zero 
 **Example output:**
 
 ```
-  glm-4.7 via https://api.z.ai/api/anthropic
+  glm-5.2 via https://api.z.ai/api/anthropic
   OK (200) in 412ms
 ```
 
@@ -197,9 +246,10 @@ All checks passed.
 
 | Variable | Used by | Description |
 |----------|---------|-------------|
-| `GLM_BASE_URL` | `launch claude`, `launch opencode` | API base URL |
-| `GLM_API_KEY` | `launch claude` | API key |
-| `GLM_AUTH_TOKEN` | `launch claude` | Z.AI auth token (required) |
+| `GLM_BASE_URL` | `launch claude`, `launch opencode`, `shell` | API base URL |
+| `GLM_API_KEY` | `launch claude`, `shell` | API key |
+| `GLM_AUTH_TOKEN` | `launch claude`, `shell`, `bench`, `models --remote` | Z.AI auth token (required) |
+| `GLM_MODELS_URL` | `models --remote` | PaaS models endpoint |
 | `API_TIMEOUT_MS` | `launch claude` | Request timeout in milliseconds |
 | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `launch claude` | Model for Haiku-tier requests |
 | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `launch claude` | Model for Sonnet-tier requests |
