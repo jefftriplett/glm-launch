@@ -639,8 +639,30 @@ def doctor() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Top-level provider aliases
+# ---------------------------------------------------------------------------
+
+# Expose providers at the top level so `glm-launch claude` works the same as
+# `glm-launch launch claude`. The `launch` group is kept for backwards compat.
+_PROVIDER_CTX = {"allow_extra_args": True, "allow_interspersed_args": False}
+app.command("claude", context_settings=_PROVIDER_CTX)(launch_claude)
+app.command("codex", context_settings=_PROVIDER_CTX)(launch_codex)
+app.command("opencode", context_settings=_PROVIDER_CTX)(launch_opencode)
+
+
+# ---------------------------------------------------------------------------
 # entry point
 # ---------------------------------------------------------------------------
 
-if __name__ == "__main__":
+
+def cli() -> None:
+    """Run the app, defaulting to the `claude` provider when no command is given."""
+    import sys
+
+    if len(sys.argv) == 1:
+        sys.argv.append("claude")
     app()
+
+
+if __name__ == "__main__":
+    cli()

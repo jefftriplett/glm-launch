@@ -11,12 +11,13 @@ Requires Python 3.13+.
 export GLM_AUTH_TOKEN="your-zai-api-key"
 
 # 2. Launch Claude Code routed through Z.AI (defaults to glm-5.2)
-uv run glm-launch launch claude
+uv run glm-launch              # bare command defaults to `claude`
+uv run glm-launch claude       # same thing, explicit
 
 # Pick a different model
-uv run glm-launch launch claude --model glm-5.1        # long-horizon flagship
-uv run glm-launch launch claude --model glm-5-turbo    # fast
-uv run glm-launch launch claude --model glm-4.5-air    # cheap
+uv run glm-launch claude --model glm-5.1        # long-horizon flagship
+uv run glm-launch claude --model glm-5-turbo    # fast
+uv run glm-launch claude --model glm-4.5-air    # cheap
 
 # Bootstrap your current shell so a plain `claude` uses Z.AI
 eval "$(uv run glm-launch shell)"
@@ -41,11 +42,32 @@ uv sync
 
 This installs a `glm-launch` entrypoint. Run commands via `uv run glm-launch <command>`, or `uv tool install .` to get `glm-launch` on your PATH directly. You can also run the script without installing via `uv run src/main.py <command>`.
 
+### Run without cloning (`uvx`)
+
+You can run `glm-launch` directly with [`uvx`](https://docs.astral.sh/uv/guides/tools/) (`uv tool run`) — no clone or manual install needed.
+
+```bash
+# From GitHub (works today)
+uvx --from git+https://github.com/jefftriplett/glm-launch glm-launch launch claude
+
+# Pin to a tag/branch/commit
+uvx --from git+https://github.com/jefftriplett/glm-launch@main glm-launch models
+```
+
+Once published to PyPI, this simplifies to:
+
+```bash
+# Coming soon — not yet on PyPI
+uvx glm-launch launch claude
+```
+
 ## Commands
 
 ### `launch claude`
 
 Launch [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with GLM environment settings. Sets Anthropic env vars to route requests through Z.AI's Anthropic-compatible endpoint, then exec's the `claude` binary.
+
+> The `launch` prefix is optional: `glm-launch claude` is equivalent to `glm-launch launch claude`, and a bare `glm-launch` defaults to `claude`. The same applies to `codex` and `opencode`.
 
 ```bash
 uv run glm-launch launch claude

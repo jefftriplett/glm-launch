@@ -7,7 +7,7 @@ requires-python = ">=3.13"
 dependencies = ["typer"]
 
 [project.scripts]
-glm-launch = "main:app"
+glm-launch = "main:cli"
 
 [build-system]
 requires = ["hatchling"]
