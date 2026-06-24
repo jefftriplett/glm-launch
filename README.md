@@ -10,6 +10,13 @@ Requires Python 3.13+.
 uv sync
 ```
 
+This installs a `glm-proxy` entrypoint. You can run commands either via `uv run glm-proxy <command>` or, after `uv tool install .`, as `glm-proxy <command>` directly. The examples below use `uv run src/main.py`, but `glm-proxy` is interchangeable:
+
+```bash
+uv run glm-proxy launch claude
+uv run glm-proxy models --remote
+```
+
 ## Quick start
 
 ```bash
