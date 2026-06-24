@@ -67,7 +67,7 @@ def _find_binary(name: str, fallback_path: str | None = None) -> str:
         expanded = os.path.expanduser(fallback_path)
         if os.path.isfile(expanded) and os.access(expanded, os.X_OK):
             return expanded
-    install_hint = f"Install it or ensure it is on your PATH."
+    install_hint = "Install it or ensure it is on your PATH."
     raise SystemExit(f"{name!r} not found. {install_hint}")
 
 
@@ -122,7 +122,9 @@ def _build_claude_env(
 )
 def launch_claude(
     ctx: typer.Context,
-    model: str = typer.Option("glm-5.2", "--model", "-m", help="Model name to pass to claude"),
+    model: str = typer.Option(
+        "glm-5.2", "--model", "-m", help="Model name to pass to claude"
+    ),
     base_url: str = typer.Option(
         "https://api.z.ai/api/anthropic",
         "--base-url",
@@ -230,7 +232,9 @@ def launch_claude(
 )
 def launch_codex(
     ctx: typer.Context,
-    model: str = typer.Option(None, "--model", "-m", help="Model name to pass to codex"),
+    model: str = typer.Option(
+        None, "--model", "-m", help="Model name to pass to codex"
+    ),
 ) -> None:
     """Launch codex with --oss flag for local Ollama usage."""
     binary = _find_binary("codex")
@@ -343,7 +347,9 @@ def _shell_quote(value: str) -> str:
 
 @app.command()
 def shell(
-    model: str = typer.Option("glm-5.2", "--model", "-m", help="Top-level model (ANTHROPIC_MODEL)"),
+    model: str = typer.Option(
+        "glm-5.2", "--model", "-m", help="Top-level model (ANTHROPIC_MODEL)"
+    ),
     base_url: str = typer.Option(
         "https://api.z.ai/api/anthropic",
         "--base-url",
@@ -351,15 +357,33 @@ def shell(
         help="Base URL for the API endpoint",
     ),
     api_key: str = typer.Option("", "--api-key", envvar="GLM_API_KEY", help="API key"),
-    auth_token: str = typer.Option(..., "--auth-token", envvar="GLM_AUTH_TOKEN", help="Auth token"),
-    api_timeout_ms: str = typer.Option("3000000", "--api-timeout-ms", envvar="API_TIMEOUT_MS"),
-    default_haiku_model: str = typer.Option("glm-4.5-air", "--default-haiku-model", envvar="ANTHROPIC_DEFAULT_HAIKU_MODEL"),
-    default_sonnet_model: str = typer.Option("glm-5.2", "--default-sonnet-model", envvar="ANTHROPIC_DEFAULT_SONNET_MODEL"),
-    default_opus_model: str = typer.Option("glm-5.2", "--default-opus-model", envvar="ANTHROPIC_DEFAULT_OPUS_MODEL"),
-    subagent_model: str = typer.Option("glm-4.5-air", "--subagent-model", envvar="CLAUDE_CODE_SUBAGENT_MODEL"),
-    effort_level: str = typer.Option("max", "--effort-level", envvar="CLAUDE_CODE_EFFORT_LEVEL"),
-    attribution_header: str = typer.Option("0", "--attribution-header", envvar="CLAUDE_CODE_ATTRIBUTION_HEADER"),
-    auto_compact_window: str = typer.Option("200000", "--auto-compact-window", envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW"),
+    auth_token: str = typer.Option(
+        ..., "--auth-token", envvar="GLM_AUTH_TOKEN", help="Auth token"
+    ),
+    api_timeout_ms: str = typer.Option(
+        "3000000", "--api-timeout-ms", envvar="API_TIMEOUT_MS"
+    ),
+    default_haiku_model: str = typer.Option(
+        "glm-4.5-air", "--default-haiku-model", envvar="ANTHROPIC_DEFAULT_HAIKU_MODEL"
+    ),
+    default_sonnet_model: str = typer.Option(
+        "glm-5.2", "--default-sonnet-model", envvar="ANTHROPIC_DEFAULT_SONNET_MODEL"
+    ),
+    default_opus_model: str = typer.Option(
+        "glm-5.2", "--default-opus-model", envvar="ANTHROPIC_DEFAULT_OPUS_MODEL"
+    ),
+    subagent_model: str = typer.Option(
+        "glm-4.5-air", "--subagent-model", envvar="CLAUDE_CODE_SUBAGENT_MODEL"
+    ),
+    effort_level: str = typer.Option(
+        "max", "--effort-level", envvar="CLAUDE_CODE_EFFORT_LEVEL"
+    ),
+    attribution_header: str = typer.Option(
+        "0", "--attribution-header", envvar="CLAUDE_CODE_ATTRIBUTION_HEADER"
+    ),
+    auto_compact_window: str = typer.Option(
+        "200000", "--auto-compact-window", envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW"
+    ),
 ) -> None:
     """Print `export` lines to bootstrap the current shell for Z.ai.
 
@@ -441,7 +465,9 @@ def models(
     """List Z.ai GLM models (built-in list, or --remote for the live API list)."""
     if remote:
         if not auth_token:
-            raise SystemExit("--remote requires an auth token (--auth-token or GLM_AUTH_TOKEN).")
+            raise SystemExit(
+                "--remote requires an auth token (--auth-token or GLM_AUTH_TOKEN)."
+            )
         known = dict(ZAI_MODELS)
         ids = _fetch_remote_models(models_url, auth_token, timeout)
         if not ids:
