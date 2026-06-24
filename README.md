@@ -4,35 +4,42 @@ A Python CLI tool that wraps LLM coding tools (`claude`, `codex`, `opencode`) wi
 
 Requires Python 3.13+.
 
+## Usage
+
+```bash
+# 1. Set your Z.AI auth token
+export GLM_AUTH_TOKEN="your-zai-api-key"
+
+# 2. Launch Claude Code routed through Z.AI (defaults to glm-5.2)
+uv run glm-launch launch claude
+
+# Pick a different model
+uv run glm-launch launch claude --model glm-5.1        # long-horizon flagship
+uv run glm-launch launch claude --model glm-5-turbo    # fast
+uv run glm-launch launch claude --model glm-4.5-air    # cheap
+
+# Bootstrap your current shell so a plain `claude` uses Z.AI
+eval "$(uv run glm-launch shell)"
+claude
+
+# See available models (built-in list, or --remote for the live API list)
+uv run glm-launch models
+uv run glm-launch models --remote
+
+# Sanity-check connectivity / latency
+uv run glm-launch bench
+```
+
+> Examples use the installed `glm-launch` entrypoint. Before `uv sync` you can run
+> the script directly with `uv run src/main.py …` — the two are interchangeable.
+
 ## Installation
 
 ```bash
 uv sync
 ```
 
-This installs a `glm-launch` entrypoint. You can run commands either via `uv run glm-launch <command>` or, after `uv tool install .`, as `glm-launch <command>` directly. The examples below use `uv run src/main.py`, but `glm-launch` is interchangeable:
-
-```bash
-uv run glm-launch launch claude
-uv run glm-launch models --remote
-```
-
-## Quick start
-
-```bash
-# Set your Z.AI auth token (required for claude)
-export GLM_AUTH_TOKEN="your-zai-api-key"
-
-# Launch Claude Code with GLM defaults
-uv run src/main.py launch claude
-```
-
-Or bootstrap your current shell so a plain `claude` uses Z.AI, then run it directly:
-
-```bash
-eval "$(uv run src/main.py shell)"
-claude
-```
+This installs a `glm-launch` entrypoint. Run commands via `uv run glm-launch <command>`, or `uv tool install .` to get `glm-launch` on your PATH directly. You can also run the script without installing via `uv run src/main.py <command>`.
 
 ## Commands
 
@@ -41,7 +48,7 @@ claude
 Launch [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with GLM environment settings. Sets Anthropic env vars to route requests through Z.AI's Anthropic-compatible endpoint, then exec's the `claude` binary.
 
 ```bash
-uv run src/main.py launch claude
+uv run glm-launch launch claude
 ```
 
 **Options:**
@@ -79,34 +86,34 @@ The following env vars are set before exec'ing `claude`:
 
 ```bash
 # Use defaults (glm-5.2, Z.AI endpoint)
-uv run src/main.py launch claude
+uv run glm-launch launch claude
 
 # Flagship reasoning/coding model (the default)
-uv run src/main.py launch claude --model glm-5.2
+uv run glm-launch launch claude --model glm-5.2
 
 # Long-horizon agentic flagship
-uv run src/main.py launch claude --model glm-5.1
+uv run glm-launch launch claude --model glm-5.1
 
 # Fast, speed-optimized GLM-5 variant
-uv run src/main.py launch claude --model glm-5-turbo
+uv run glm-launch launch claude --model glm-5-turbo
 
 # Lightweight, low-cost model for cheaper runs
-uv run src/main.py launch claude --model glm-4.5-air
+uv run glm-launch launch claude --model glm-4.5-air
 
 # Tune the model tiers independently (e.g. cheap subagents, flagship main)
-uv run src/main.py launch claude \
+uv run glm-launch launch claude \
   --model glm-5.2 \
   --subagent-model glm-4.5-air \
   --default-haiku-model glm-4.5-air
 
 # Pass extra args through to claude
-uv run src/main.py launch claude -- --verbose
+uv run glm-launch launch claude -- --verbose
 
 # Override via env vars
-GLM_AUTH_TOKEN="my-token" uv run src/main.py launch claude
+GLM_AUTH_TOKEN="my-token" uv run glm-launch launch claude
 ```
 
-Run `uv run src/main.py models` to see all valid model names (or `--remote` for the live list).
+Run `uv run glm-launch models` to see all valid model names (or `--remote` for the live list).
 
 If `claude` is not on your PATH, the tool falls back to `~/.claude/local/claude`.
 
@@ -115,7 +122,7 @@ If `claude` is not on your PATH, the tool falls back to `~/.claude/local/claude`
 Launch [Codex](https://github.com/openai/codex) with the `--oss` flag for local Ollama usage.
 
 ```bash
-uv run src/main.py launch codex
+uv run glm-launch launch codex
 ```
 
 **Options:**
@@ -128,13 +135,13 @@ uv run src/main.py launch codex
 
 ```bash
 # Launch with default settings
-uv run src/main.py launch codex
+uv run glm-launch launch codex
 
 # Specify a model
-uv run src/main.py launch codex --model "some-model"
+uv run glm-launch launch codex --model "some-model"
 
 # Pass extra args through to codex
-uv run src/main.py launch codex -- --some-flag
+uv run glm-launch launch codex -- --some-flag
 ```
 
 ### `launch opencode`
@@ -142,7 +149,7 @@ uv run src/main.py launch codex -- --some-flag
 Launch [opencode](https://opencode.ai/) after writing provider config. Writes an Ollama-compatible provider to `~/.config/opencode/opencode.json` and updates the recent model state at `~/.local/state/opencode/model.json`, then exec's the `opencode` binary.
 
 ```bash
-uv run src/main.py launch opencode --model "some-model"
+uv run glm-launch launch opencode --model "some-model"
 ```
 
 **Options:**
@@ -156,10 +163,10 @@ uv run src/main.py launch opencode --model "some-model"
 
 ```bash
 # Launch with a model
-GLM_BASE_URL="http://localhost:11434/v1" uv run src/main.py launch opencode --model "llama3"
+GLM_BASE_URL="http://localhost:11434/v1" uv run glm-launch launch opencode --model "llama3"
 
 # Pass extra args through to opencode
-uv run src/main.py launch opencode --model "llama3" -- --some-flag
+uv run glm-launch launch opencode --model "llama3" -- --some-flag
 ```
 
 ### `shell`
@@ -167,7 +174,7 @@ uv run src/main.py launch opencode --model "llama3" -- --some-flag
 Print `export` lines that bootstrap your current shell with the GLM env vars — without launching anything. Eval the output and a plain `claude` (or any Anthropic SDK tool) will talk to Z.AI.
 
 ```bash
-eval "$(uv run src/main.py shell)"
+eval "$(uv run glm-launch shell)"
 claude
 ```
 
@@ -175,10 +182,10 @@ Accepts the same model/auth options as `launch claude` (`--model`, `--auth-token
 
 ```bash
 # Inspect what would be exported
-uv run src/main.py shell
+uv run glm-launch shell
 
 # Bootstrap with a specific model
-eval "$(uv run src/main.py shell --model glm-5.1)"
+eval "$(uv run glm-launch shell --model glm-5.1)"
 ```
 
 ### `models`
@@ -187,10 +194,10 @@ List Z.AI GLM models. By default prints a built-in, annotated list; `--remote` f
 
 ```bash
 # Built-in list (no token needed)
-uv run src/main.py models
+uv run glm-launch models
 
 # Live list from the API (needs GLM_AUTH_TOKEN)
-uv run src/main.py models --remote
+uv run glm-launch models --remote
 ```
 
 **Options:**
@@ -209,7 +216,7 @@ The live endpoint is the OpenAI-compatible PaaS base (`/api/paas/v4/models`) and
 Time a single `/v1/messages` round-trip against the configured GLM endpoint. Useful as a sanity check that your auth token, base URL, and chosen model are reachable.
 
 ```bash
-uv run src/main.py bench
+uv run glm-launch bench
 ```
 
 **Options:**
@@ -235,7 +242,7 @@ Sends a minimal 32-token request and prints the round-trip time. Exits non-zero 
 Check your environment for correct setup. Reports on environment variables, binary availability, and config files.
 
 ```bash
-uv run src/main.py doctor
+uv run glm-launch doctor
 ```
 
 **Checks performed:**
@@ -278,11 +285,11 @@ All checks passed.
 | `GLM_API_KEY` | `launch claude`, `shell` | API key |
 | `GLM_AUTH_TOKEN` | `launch claude`, `shell`, `bench`, `models --remote` | Z.AI auth token (required) |
 | `GLM_MODELS_URL` | `models --remote` | PaaS models endpoint |
-| `API_TIMEOUT_MS` | `launch claude` | Request timeout in milliseconds |
-| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `launch claude` | Model for Haiku-tier requests |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL` | `launch claude` | Model for Sonnet-tier requests |
-| `ANTHROPIC_DEFAULT_OPUS_MODEL` | `launch claude` | Model for Opus-tier requests |
-| `CLAUDE_CODE_SUBAGENT_MODEL` | `launch claude` | Model used for spawned subagents |
+| `API_TIMEOUT_MS` | `launch claude`, `shell` | Request timeout in milliseconds |
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `launch claude`, `shell` | Model for Haiku-tier requests |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | `launch claude`, `shell` | Model for Sonnet-tier requests |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL` | `launch claude`, `shell` | Model for Opus-tier requests |
+| `CLAUDE_CODE_SUBAGENT_MODEL` | `launch claude`, `shell` | Model used for spawned subagents |
 | `CLAUDE_CODE_EFFORT_LEVEL` | `launch claude`, `shell` | Effort level for the agent loop |
 | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `launch claude`, `shell` | Attribution header toggle (`0` disables it) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `launch claude`, `shell` | Auto-compact context window in tokens |
