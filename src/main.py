@@ -88,6 +88,8 @@ def _build_claude_env(
     default_opus_model: str,
     subagent_model: str,
     effort_level: str,
+    attribution_header: str = "0",
+    auto_compact_window: str = "",
 ) -> dict[str, str]:
     """Build the GLM env vars claude needs to talk to Z.ai."""
     env = {
@@ -100,9 +102,12 @@ def _build_claude_env(
         "ANTHROPIC_DEFAULT_OPUS_MODEL": default_opus_model,
         "CLAUDE_CODE_SUBAGENT_MODEL": subagent_model,
         "CLAUDE_CODE_EFFORT_LEVEL": effort_level,
+        "CLAUDE_CODE_ATTRIBUTION_HEADER": attribution_header,
     }
     if model:
         env["ANTHROPIC_MODEL"] = model
+    if auto_compact_window:
+        env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = auto_compact_window
     return env
 
 
@@ -172,6 +177,18 @@ def launch_claude(
         envvar="CLAUDE_CODE_EFFORT_LEVEL",
         help="Effort level (e.g. max)",
     ),
+    attribution_header: str = typer.Option(
+        "0",
+        "--attribution-header",
+        envvar="CLAUDE_CODE_ATTRIBUTION_HEADER",
+        help="Attribution header toggle (0 disables it)",
+    ),
+    auto_compact_window: str = typer.Option(
+        "200000",
+        "--auto-compact-window",
+        envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW",
+        help="Auto-compact context window (token count); empty to leave unset",
+    ),
 ) -> None:
     """Launch claude with GLM environment settings."""
     binary = _find_binary("claude", "~/.claude/local/claude")
@@ -189,6 +206,8 @@ def launch_claude(
             default_opus_model=default_opus_model,
             subagent_model=subagent_model,
             effort_level=effort_level,
+            attribution_header=attribution_header,
+            auto_compact_window=auto_compact_window,
         )
     )
 
@@ -339,6 +358,8 @@ def shell(
     default_opus_model: str = typer.Option("glm-5.2", "--default-opus-model", envvar="ANTHROPIC_DEFAULT_OPUS_MODEL"),
     subagent_model: str = typer.Option("glm-4.5-air", "--subagent-model", envvar="CLAUDE_CODE_SUBAGENT_MODEL"),
     effort_level: str = typer.Option("max", "--effort-level", envvar="CLAUDE_CODE_EFFORT_LEVEL"),
+    attribution_header: str = typer.Option("0", "--attribution-header", envvar="CLAUDE_CODE_ATTRIBUTION_HEADER"),
+    auto_compact_window: str = typer.Option("200000", "--auto-compact-window", envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW"),
 ) -> None:
     """Print `export` lines to bootstrap the current shell for Z.ai.
 
@@ -357,6 +378,8 @@ def shell(
         default_opus_model=default_opus_model,
         subagent_model=subagent_model,
         effort_level=effort_level,
+        attribution_header=attribution_header,
+        auto_compact_window=auto_compact_window,
     )
     for key, value in env.items():
         if value:

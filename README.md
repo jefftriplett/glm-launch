@@ -58,6 +58,8 @@ uv run src/main.py launch claude
 | `--default-opus-model` | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `glm-5.2` | Model for Opus-tier requests |
 | `--subagent-model` | `CLAUDE_CODE_SUBAGENT_MODEL` | `glm-4.5-air` | Model used for spawned subagents |
 | `--effort-level` | `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort level for the agent loop |
+| `--attribution-header` | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `0` | Attribution header toggle (`0` disables it) |
+| `--auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `200000` | Auto-compact context window in tokens (empty to leave unset) |
 
 The following env vars are set before exec'ing `claude`:
 
@@ -70,6 +72,8 @@ The following env vars are set before exec'ing `claude`:
 - `ANTHROPIC_DEFAULT_OPUS_MODEL` — from `--default-opus-model`
 - `CLAUDE_CODE_SUBAGENT_MODEL` — from `--subagent-model`
 - `CLAUDE_CODE_EFFORT_LEVEL` — from `--effort-level`
+- `CLAUDE_CODE_ATTRIBUTION_HEADER` — from `--attribution-header`
+- `CLAUDE_CODE_AUTO_COMPACT_WINDOW` — from `--auto-compact-window` (only when non-empty)
 
 **Examples:**
 
@@ -77,8 +81,23 @@ The following env vars are set before exec'ing `claude`:
 # Use defaults (glm-5.2, Z.AI endpoint)
 uv run src/main.py launch claude
 
-# Override the model
-uv run src/main.py launch claude --model "glm-4.5-air"
+# Flagship reasoning/coding model (the default)
+uv run src/main.py launch claude --model glm-5.2
+
+# Long-horizon agentic flagship
+uv run src/main.py launch claude --model glm-5.1
+
+# Fast, speed-optimized GLM-5 variant
+uv run src/main.py launch claude --model glm-5-turbo
+
+# Lightweight, low-cost model for cheaper runs
+uv run src/main.py launch claude --model glm-4.5-air
+
+# Tune the model tiers independently (e.g. cheap subagents, flagship main)
+uv run src/main.py launch claude \
+  --model glm-5.2 \
+  --subagent-model glm-4.5-air \
+  --default-haiku-model glm-4.5-air
 
 # Pass extra args through to claude
 uv run src/main.py launch claude -- --verbose
@@ -86,6 +105,8 @@ uv run src/main.py launch claude -- --verbose
 # Override via env vars
 GLM_AUTH_TOKEN="my-token" uv run src/main.py launch claude
 ```
+
+Run `uv run src/main.py models` to see all valid model names (or `--remote` for the live list).
 
 If `claude` is not on your PATH, the tool falls back to `~/.claude/local/claude`.
 
@@ -262,7 +283,9 @@ All checks passed.
 | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `launch claude` | Model for Sonnet-tier requests |
 | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `launch claude` | Model for Opus-tier requests |
 | `CLAUDE_CODE_SUBAGENT_MODEL` | `launch claude` | Model used for spawned subagents |
-| `CLAUDE_CODE_EFFORT_LEVEL` | `launch claude` | Effort level for the agent loop |
+| `CLAUDE_CODE_EFFORT_LEVEL` | `launch claude`, `shell` | Effort level for the agent loop |
+| `CLAUDE_CODE_ATTRIBUTION_HEADER` | `launch claude`, `shell` | Attribution header toggle (`0` disables it) |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `launch claude`, `shell` | Auto-compact context window in tokens |
 
 ## How it works
 
