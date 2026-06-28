@@ -284,164 +284,25 @@ def launch_claude(
 # ---------------------------------------------------------------------------
 
 
-# Z.ai's OpenAI-compatible (Chat Completions) endpoint for the GLM Coding Plan.
-# This differs from the Anthropic-compatible base used by the claude provider.
-CODEX_BASE_URL = "https://api.z.ai/api/coding/paas/v4"
-
-# codex would otherwise fall back to its config default model (e.g. a GPT
-# model), so pin a GLM default when routing through Z.ai.
-CODEX_DEFAULT_MODEL = "glm-5.2"
-
-# A named provider (rather than the built-in OpenAI provider) keeps codex on
-# API-key auth instead of falling back to a logged-in ChatGPT account.
-CODEX_PROVIDER_ID = "glm"
-CODEX_PROFILE = "glm-launch"
-CODEX_AUTH_ENV = "GLM_AUTH_TOKEN"
-
-
-def _codex_home() -> str:
-    """codex config dir (CODEX_HOME, defaulting to ~/.codex)."""
-    return os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex")
-
-
-def _codex_profile_path() -> str:
-    return os.path.join(_codex_home(), f"{CODEX_PROFILE}.config.toml")
-
-
-def _codex_profile_toml(model: str, base_url: str) -> str:
-    """Build the standalone profile codex layers via `--profile`.
-
-    The token is read from the env var named by env_key, so no secret is
-    written to disk. wire_api="responses" is required by current codex (the
-    legacy "chat" value was removed).
-    """
-    return (
-        "# Managed by glm-launch. Loaded via `codex --profile "
-        f"{CODEX_PROFILE}`.\n"
-        f'model = "{model}"\n'
-        f'model_provider = "{CODEX_PROVIDER_ID}"\n'
-        "\n"
-        f"[model_providers.{CODEX_PROVIDER_ID}]\n"
-        'name = "Z.ai GLM"\n'
-        f'base_url = "{base_url}"\n'
-        f'env_key = "{CODEX_AUTH_ENV}"\n'
-        'wire_api = "responses"\n'
-    )
-
-
-def _write_codex_profile(model: str, base_url: str) -> str:
-    """Atomically write the codex profile file and return its path."""
-    path = _codex_profile_path()
-    directory = os.path.dirname(path)
-    os.makedirs(directory, mode=0o755, exist_ok=True)
-
-    content = _codex_profile_toml(model, base_url)
-    tmp_path = ""
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w", dir=directory, delete=False, encoding="utf-8"
-        ) as f:
-            tmp_path = f.name
-            f.write(content)
-        os.replace(tmp_path, path)
-    except OSError as e:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-        raise SystemExit(f"Could not write {path}: {e}") from e
-    return path
-
-
+# codex is intentionally disabled. codex only speaks the OpenAI Responses API
+# (it removed wire_api="chat"), but Z.ai's GLM endpoints are Anthropic Messages
+# and OpenAI Chat Completions only -- there is no /responses endpoint, so codex
+# requests 404. Use the claude or opencode providers instead.
 @launch_app.command(
     "codex",
     context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
 )
-def launch_codex(
-    ctx: typer.Context,
-    model: str = typer.Option(
-        None, "--model", "-m", help="Model name to pass to codex"
-    ),
-    base_url: str = typer.Option(
-        CODEX_BASE_URL,
-        "--base-url",
-        envvar="GLM_CODEX_BASE_URL",
-        help="OpenAI-compatible GLM base URL",
-    ),
-    auth_token: str = typer.Option(
-        "",
-        "--auth-token",
-        envvar="GLM_AUTH_TOKEN",
-        help="Z.ai auth token (required)",
-    ),
-    force: bool = typer.Option(
-        False,
-        "--force",
-        help="Launch anyway against the default Z.ai endpoint (codex needs a Responses API; Z.ai is Chat Completions only)",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Print the resolved command without launching codex",
-    ),
-) -> None:
-    """Launch codex routed through Z.ai GLM."""
-    binary = _find_binary("codex")
-
-    if not auth_token:
-        typer.echo(
-            "codex requires a Z.ai auth token (--auth-token or GLM_AUTH_TOKEN).",
-            err=True,
-        )
-        raise typer.Exit(1)
-
-    # codex only speaks the OpenAI Responses API (it removed wire_api="chat").
-    # Z.ai's GLM endpoints are Anthropic Messages and OpenAI Chat Completions --
-    # there is no Responses endpoint, so the default base_url will 404. Refuse up
-    # front unless the user points --base-url at a Responses-capable endpoint
-    # (e.g. a local Responses->Chat bridge) or passes --force.
-    if base_url == CODEX_BASE_URL and not force:
-        typer.echo(
-            "codex is not supported against Z.ai directly: codex requires the "
-            "OpenAI Responses API, but Z.ai only exposes Anthropic Messages and "
-            "OpenAI Chat Completions (no /responses endpoint), so requests 404.\n"
-            "  - Use `glm-launch launch claude` or `glm-launch launch opencode` "
-            "instead (both protocols Z.ai supports).\n"
-            "  - Or point --base-url (GLM_CODEX_BASE_URL) at a Responses-capable "
-            "endpoint such as a local Responses->Chat bridge.\n"
-            "  - Pass --force to launch against the default endpoint anyway.",
-            err=True,
-        )
-        raise typer.Exit(1)
-
-    # Define Z.ai as a named provider in a dedicated profile file (never touching
-    # the user's ~/.codex/config.toml), then launch with --profile. A named
-    # provider keeps codex on API-key auth (env_key) instead of falling back to a
-    # logged-in ChatGPT account.
-    resolved_model = model or CODEX_DEFAULT_MODEL
-    profile_path = _codex_profile_path()
-
-    cmd_args = [binary, "--profile", CODEX_PROFILE]
-    cmd_args.extend(ctx.args)
-
-    # codex reads the token from the env var named by env_key.
-    env = {**os.environ, CODEX_AUTH_ENV: auth_token}
-
-    if dry_run:
-        _print_dry_run(
-            binary=binary,
-            cmd_args=cmd_args,
-            env={CODEX_AUTH_ENV: auth_token},
-            config_changes=[
-                f"would write {profile_path}:",
-                *_codex_profile_toml(resolved_model, base_url).splitlines(),
-            ],
-        )
-        return
-
-    _write_codex_profile(resolved_model, base_url)
-    os.execvpe(binary, cmd_args, env)
+def launch_codex(ctx: typer.Context) -> None:
+    """Disabled: Z.ai does not support codex (no OpenAI Responses API)."""
+    typer.echo(
+        "codex is not supported by glm-launch.\n"
+        "codex requires the OpenAI Responses API, but Z.ai's GLM only exposes "
+        "Anthropic Messages and OpenAI Chat Completions (no /responses endpoint), "
+        "so codex requests 404.\n"
+        "Use `glm-launch launch claude` or `glm-launch launch opencode` instead.",
+        err=True,
+    )
+    raise typer.Exit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -856,7 +717,6 @@ _CLAUDE_ENV_VARS = [
 
 _BINARIES = [
     ("claude", "~/.claude/local/claude"),
-    ("codex", None),
     ("opencode", None),
 ]
 
