@@ -334,10 +334,11 @@ Common tasks are wrapped in a [`justfile`](https://github.com/casey/just). Run `
 | `just build` | `uv build` the wheel and sdist |
 | `just bump *ARGS` | Bump the CalVer version with `bumpver` (e.g. `just bump`) |
 | `just bump-dry *ARGS` | Preview a version bump without writing changes |
+| `just release *ARGS` | Bump, relock, and push the tag — CI then publishes to PyPI |
 | `just lint *ARGS` | Run the [prek](https://github.com/j178/prek) hooks (defaults to `--all-files`) |
 | `just fmt` | Format the `justfile` itself |
 | `just demo` | Smoke-test the CLI by listing models |
 
 Versioning follows [CalVer](https://calver.org/) (`YYYY.MM.INC1`), and lint hooks (ruff, pyupgrade, validate-pyproject) are configured in `.pre-commit-config.yaml` and run with `prek`.
 
-Releases are automated: `just bump` writes the new version and creates a tag, and pushing that tag (`git push --follow-tags`) triggers the GitHub Actions release workflow, which builds and publishes to PyPI via [trusted publishing](https://docs.pypi.org/trusted-publishers/) (OIDC, no API token).
+Releases are automated. Run `just release` to bump the CalVer version, relock, and push the tag in one step. Pushing a `YYYY.MM.INC1` tag triggers the GitHub Actions release workflow, which builds and publishes to PyPI via [trusted publishing](https://docs.pypi.org/trusted-publishers/) (OIDC, no API token). A plain `git push` never publishes — only the tag does.
