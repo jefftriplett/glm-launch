@@ -1,5 +1,5 @@
 [project]
-name = "glm-cli-git"
+name = "glm-launch"
 version = "2026.6.1"
 description = "Wrap claude/codex/opencode with Z.ai GLM settings"
 readme = "README.md"
