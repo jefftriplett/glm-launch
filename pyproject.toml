@@ -1,6 +1,6 @@
 [project]
 name = "glm-launch"
-version = "2026.6.3"
+version = "2026.6.4"
 description = "Wrap claude/codex/opencode with Z.ai GLM settings"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -23,7 +23,7 @@ only-include = ["src/main.py"]
 sources = { "src" = "" }
 
 [tool.bumpver]
-current_version = "2026.6.3"
+current_version = "2026.6.4"
 version_pattern = "YYYY.MM.INC1"
 commit_message = ":bookmark: bump version {old_version} -> {new_version}"
 commit = true

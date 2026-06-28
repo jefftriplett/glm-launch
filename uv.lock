@@ -22,7 +22,7 @@ wheels = [
 
 [[package]]
 name = "glm-launch"
-version = "2026.6.3"
+version = "2026.6.4"
 source = { editable = "." }
 dependencies = [
     { name = "typer" },
