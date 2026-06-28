@@ -1,6 +1,6 @@
 [project]
 name = "glm-cli-git"
-version = "0.1.0"
+version = "2026.6.1"
 description = "Wrap claude/codex/opencode with Z.ai GLM settings"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -15,4 +15,18 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 only-include = ["src/main.py"]
-sources = ["src"]
+sources = { "src" = "" }
+
+[tool.bumpver]
+current_version = "2026.6.1"
+version_pattern = "YYYY.MM.INC1"
+commit_message = ":bookmark: bump version {old_version} -> {new_version}"
+commit = true
+push = false  # disabled for GitHub Actions
+tag = true
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = [
+    'current_version = "{version}"',
+    'version = "{version}"',
+]
