@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import tempfile
 
 import typer
 
@@ -51,6 +52,54 @@ ZAI_MODELS: list[tuple[str, str]] = [
     ("glm-4.5", "Previous-gen general model"),
     ("glm-4.5-air", "Lightweight, low-cost (good for subagents/haiku tier)"),
 ]
+
+
+# ---------------------------------------------------------------------------
+# Output helpers
+# ---------------------------------------------------------------------------
+
+_SECRET_VARS = {
+    "GLM_API_KEY",
+    "GLM_AUTH_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+}
+
+
+def _mask(value: str) -> str:
+    """Show first 4 and last 4 chars, mask the rest."""
+    if len(value) <= 10:
+        return value[:2] + "***"
+    return value[:4] + "***" + value[-4:]
+
+
+def _display_value(key: str, value: str) -> str:
+    if not value:
+        return "(empty)"
+    return _mask(value) if key in _SECRET_VARS else value
+
+
+def _print_dry_run(
+    *,
+    binary: str,
+    cmd_args: list[str],
+    env: dict[str, str] | None = None,
+    config_changes: list[str] | None = None,
+) -> None:
+    """Print the launch plan without exec'ing the target binary."""
+    print("Dry run:")
+    print(f"  binary: {binary}")
+    print(f"  argv: {cmd_args!r}")
+
+    if env:
+        print("  env:")
+        for key in sorted(env):
+            print(f"    {key}={_display_value(key, env[key])}")
+
+    if config_changes:
+        print("  config:")
+        for change in config_changes:
+            print(f"    {change}")
 
 
 # ---------------------------------------------------------------------------
@@ -191,32 +240,40 @@ def launch_claude(
         envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW",
         help="Auto-compact context window (token count); empty to leave unset",
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print the resolved command and GLM environment without launching claude",
+    ),
 ) -> None:
     """Launch claude with GLM environment settings."""
     binary = _find_binary("claude", "~/.claude/local/claude")
 
-    env = os.environ.copy()
-    env.update(
-        _build_claude_env(
-            model=model,
-            base_url=base_url,
-            api_key=api_key,
-            auth_token=auth_token,
-            api_timeout_ms=api_timeout_ms,
-            default_haiku_model=default_haiku_model,
-            default_sonnet_model=default_sonnet_model,
-            default_opus_model=default_opus_model,
-            subagent_model=subagent_model,
-            effort_level=effort_level,
-            attribution_header=attribution_header,
-            auto_compact_window=auto_compact_window,
-        )
+    glm_env = _build_claude_env(
+        model=model,
+        base_url=base_url,
+        api_key=api_key,
+        auth_token=auth_token,
+        api_timeout_ms=api_timeout_ms,
+        default_haiku_model=default_haiku_model,
+        default_sonnet_model=default_sonnet_model,
+        default_opus_model=default_opus_model,
+        subagent_model=subagent_model,
+        effort_level=effort_level,
+        attribution_header=attribution_header,
+        auto_compact_window=auto_compact_window,
     )
+    env = os.environ.copy()
+    env.update(glm_env)
 
     cmd_args = [binary]
     if model:
         cmd_args.extend(["--model", model])
     cmd_args.extend(ctx.args)
+
+    if dry_run:
+        _print_dry_run(binary=binary, cmd_args=cmd_args, env=glm_env)
+        return
 
     os.execvpe(binary, cmd_args, env)
 
@@ -235,6 +292,11 @@ def launch_codex(
     model: str = typer.Option(
         None, "--model", "-m", help="Model name to pass to codex"
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print the resolved command without launching codex",
+    ),
 ) -> None:
     """Launch codex with --oss flag for local Ollama usage."""
     binary = _find_binary("codex")
@@ -244,6 +306,10 @@ def launch_codex(
         cmd_args.extend(["-m", model])
     cmd_args.extend(ctx.args)
 
+    if dry_run:
+        _print_dry_run(binary=binary, cmd_args=cmd_args)
+        return
+
     os.execvpe(binary, cmd_args, os.environ)
 
 
@@ -251,63 +317,135 @@ def launch_codex(
 # launch opencode
 # ---------------------------------------------------------------------------
 
+OPENCODE_PROVIDER_ID = "glm"
+OPENCODE_PROVIDER_NAME = "GLM Launch"
+
+
+def _read_json_object(path: str) -> dict:
+    """Read a JSON object, preserving user files by failing on invalid content."""
+    if not os.path.isfile(path):
+        return {}
+
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        raise SystemExit(f"{path} is not valid JSON: {e}") from e
+    except OSError as e:
+        raise SystemExit(f"Could not read {path}: {e}") from e
+
+    if not isinstance(data, dict):
+        raise SystemExit(f"{path} must contain a JSON object.")
+    return data
+
+
+def _write_json_object(path: str, data: dict) -> None:
+    """Atomically write a JSON object."""
+    directory = os.path.dirname(path)
+    os.makedirs(directory, mode=0o755, exist_ok=True)
+
+    tmp_path = ""
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", dir=directory, delete=False, encoding="utf-8"
+        ) as f:
+            tmp_path = f.name
+            json.dump(data, f, indent=2)
+            f.write("\n")
+        os.replace(tmp_path, path)
+    except OSError as e:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        raise SystemExit(f"Could not write {path}: {e}") from e
+
 
 def _write_opencode_config(model: str | None, base_url: str) -> None:
     """Write (or update) ~/.config/opencode/opencode.json and state file."""
     config_dir = os.path.expanduser("~/.config/opencode")
     config_path = os.path.join(config_dir, "opencode.json")
 
-    # Load existing config or start fresh
-    config: dict = {}
-    if os.path.isfile(config_path):
-        try:
-            with open(config_path) as f:
-                config = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
+    config = _read_json_object(config_path)
 
     config.setdefault("$schema", "https://opencode.ai/config.json")
     providers = config.setdefault("provider", {})
-    ollama = providers.setdefault("ollama", {})
-    ollama["npm"] = "@ai-sdk/openai-compatible"
-    ollama["name"] = "Ollama (local)"
-    ollama.setdefault("options", {})["baseURL"] = base_url
-    models = ollama.setdefault("models", {})
+    if not isinstance(providers, dict):
+        raise SystemExit(f"{config_path}: 'provider' must be a JSON object.")
+
+    provider = providers.setdefault(OPENCODE_PROVIDER_ID, {})
+    if not isinstance(provider, dict):
+        raise SystemExit(
+            f"{config_path}: provider '{OPENCODE_PROVIDER_ID}' must be a JSON object."
+        )
+
+    provider["npm"] = "@ai-sdk/openai-compatible"
+    provider["name"] = OPENCODE_PROVIDER_NAME
+
+    options = provider.setdefault("options", {})
+    if not isinstance(options, dict):
+        raise SystemExit(
+            f"{config_path}: provider '{OPENCODE_PROVIDER_ID}'.options must be a JSON object."
+        )
+    options["baseURL"] = base_url
+
+    models = provider.setdefault("models", {})
+    if not isinstance(models, dict):
+        raise SystemExit(
+            f"{config_path}: provider '{OPENCODE_PROVIDER_ID}'.models must be a JSON object."
+        )
 
     if model:
         models[model] = {"name": model, "_launch": True}
 
-    os.makedirs(config_dir, mode=0o755, exist_ok=True)
-    with open(config_path, "w") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
+    _write_json_object(config_path, config)
 
     # Update state/model.json with recent model
     if model:
         state_dir = os.path.expanduser("~/.local/state/opencode")
         state_path = os.path.join(state_dir, "model.json")
 
-        state: dict = {}
-        if os.path.isfile(state_path):
-            try:
-                with open(state_path) as f:
-                    state = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                pass
+        state = _read_json_object(state_path)
 
-        recent: list = state.setdefault("recent", [])
+        recent = state.setdefault("recent", [])
+        if not isinstance(recent, list):
+            recent = []
         state.setdefault("favorite", [])
         state.setdefault("variant", {})
 
-        entry = {"providerID": "ollama", "modelID": model}
-        recent = [r for r in recent if r.get("modelID") != model]
+        entry = {"providerID": OPENCODE_PROVIDER_ID, "modelID": model}
+        recent = [
+            r
+            for r in recent
+            if not (
+                isinstance(r, dict)
+                and r.get("providerID") == OPENCODE_PROVIDER_ID
+                and r.get("modelID") == model
+            )
+        ]
         recent.insert(0, entry)
         state["recent"] = recent[:10]
 
-        os.makedirs(state_dir, mode=0o755, exist_ok=True)
-        with open(state_path, "w") as f:
-            json.dump(state, f, indent=2)
-            f.write("\n")
+        _write_json_object(state_path, state)
+
+
+def _opencode_config_changes(model: str | None, base_url: str) -> list[str]:
+    config_path = os.path.expanduser("~/.config/opencode/opencode.json")
+    state_path = os.path.expanduser("~/.local/state/opencode/model.json")
+    changes = [
+        f"would set {config_path}: provider.{OPENCODE_PROVIDER_ID}.npm=@ai-sdk/openai-compatible",
+        f"would set {config_path}: provider.{OPENCODE_PROVIDER_ID}.name={OPENCODE_PROVIDER_NAME}",
+        f"would set {config_path}: provider.{OPENCODE_PROVIDER_ID}.options.baseURL={base_url}",
+    ]
+    if model:
+        changes.append(
+            f"would set {config_path}: provider.{OPENCODE_PROVIDER_ID}.models.{model}"
+        )
+        changes.append(
+            f"would update {state_path}: recent[0]={OPENCODE_PROVIDER_ID}/{model}"
+        )
+    return changes
 
 
 @launch_app.command(
@@ -323,14 +461,27 @@ def launch_opencode(
         envvar="GLM_BASE_URL",
         help="Base URL for the API endpoint",
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print the resolved command and config changes without launching or writing files",
+    ),
 ) -> None:
     """Launch opencode after writing provider config."""
     binary = _find_binary("opencode")
 
-    _write_opencode_config(model, base_url)
-
     cmd_args = [binary]
     cmd_args.extend(ctx.args)
+
+    if dry_run:
+        _print_dry_run(
+            binary=binary,
+            cmd_args=cmd_args,
+            config_changes=_opencode_config_changes(model, base_url),
+        )
+        return
+
+    _write_opencode_config(model, base_url)
 
     os.execvpe(binary, cmd_args, os.environ)
 
@@ -561,12 +712,15 @@ _CLAUDE_ENV_VARS = [
     "GLM_BASE_URL",
     "GLM_API_KEY",
     "GLM_AUTH_TOKEN",
+    "GLM_MODELS_URL",
     "API_TIMEOUT_MS",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL",
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
     "CLAUDE_CODE_SUBAGENT_MODEL",
     "CLAUDE_CODE_EFFORT_LEVEL",
+    "CLAUDE_CODE_ATTRIBUTION_HEADER",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
 ]
 
 _BINARIES = [
@@ -574,15 +728,6 @@ _BINARIES = [
     ("codex", None),
     ("opencode", None),
 ]
-
-_SECRET_VARS = {"GLM_API_KEY", "GLM_AUTH_TOKEN"}
-
-
-def _mask(value: str) -> str:
-    """Show first 4 and last 4 chars, mask the rest."""
-    if len(value) <= 10:
-        return value[:2] + "***"
-    return value[:4] + "***" + value[-4:]
 
 
 @app.command()

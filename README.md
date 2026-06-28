@@ -87,6 +87,7 @@ uv run glm-launch launch claude
 | `--effort-level` | `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort level for the agent loop |
 | `--attribution-header` | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `0` | Attribution header toggle (`0` disables it) |
 | `--auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `200000` | Auto-compact context window in tokens (empty to leave unset) |
+| `--dry-run` | — | `false` | Print the resolved command and masked GLM environment without launching |
 
 The following env vars are set before exec'ing `claude`:
 
@@ -129,6 +130,9 @@ uv run glm-launch launch claude \
 # Pass extra args through to claude
 uv run glm-launch launch claude -- --verbose
 
+# Inspect the command/env without launching claude
+uv run glm-launch launch claude --dry-run
+
 # Override via env vars
 GLM_AUTH_TOKEN="my-token" uv run glm-launch launch claude
 ```
@@ -150,6 +154,7 @@ uv run glm-launch launch codex
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--model` / `-m` | — | Model name passed to `codex -m` |
+| `--dry-run` | `false` | Print the resolved command without launching |
 
 **Examples:**
 
@@ -162,11 +167,14 @@ uv run glm-launch launch codex --model "some-model"
 
 # Pass extra args through to codex
 uv run glm-launch launch codex -- --some-flag
+
+# Inspect the command without launching codex
+uv run glm-launch launch codex --dry-run
 ```
 
 ### `launch opencode`
 
-Launch [opencode](https://opencode.ai/) after writing provider config. Writes an Ollama-compatible provider to `~/.config/opencode/opencode.json` and updates the recent model state at `~/.local/state/opencode/model.json`, then exec's the `opencode` binary.
+Launch [opencode](https://opencode.ai/) after writing provider config. Writes an OpenAI-compatible `glm` provider to `~/.config/opencode/opencode.json` and updates the recent model state at `~/.local/state/opencode/model.json`, then exec's the `opencode` binary.
 
 ```bash
 uv run glm-launch launch opencode --model "some-model"
@@ -178,6 +186,7 @@ uv run glm-launch launch opencode --model "some-model"
 |------|---------|---------|-------------|
 | `--model` / `-m` | — | — | Model name to configure in opencode |
 | `--base-url` | `GLM_BASE_URL` | **(required)** | Base URL for the API endpoint |
+| `--dry-run` | — | `false` | Print the resolved command and config changes without launching or writing files |
 
 **Examples:**
 
@@ -187,6 +196,9 @@ GLM_BASE_URL="http://localhost:11434/v1" uv run glm-launch launch opencode --mod
 
 # Pass extra args through to opencode
 uv run glm-launch launch opencode --model "llama3" -- --some-flag
+
+# Inspect config changes without writing files or launching opencode
+uv run glm-launch launch opencode --model "llama3" --dry-run
 ```
 
 ### `shell`
@@ -267,7 +279,7 @@ uv run glm-launch doctor
 
 **Checks performed:**
 
-- **Environment variables** — Whether `GLM_BASE_URL`, `GLM_API_KEY`, `GLM_AUTH_TOKEN`, `API_TIMEOUT_MS`, and the `ANTHROPIC_DEFAULT_*_MODEL` vars are set. Secrets are masked in output.
+- **Environment variables** — Whether the GLM, Anthropic default-model, and Claude Code env vars used by the launch commands are set. Secrets are masked in output.
 - **Binaries** — Whether `claude`, `codex`, and `opencode` are found on PATH (with fallback to `~/.claude/local/claude` for claude).
 - **Config files** — Whether `~/.config/opencode/opencode.json` and `~/.local/state/opencode/model.json` exist.
 
@@ -280,10 +292,15 @@ Environment variables:
   GLM_BASE_URL: (not set)
   GLM_API_KEY: (not set)
   GLM_AUTH_TOKEN: (not set)
+  GLM_MODELS_URL: (not set)
   API_TIMEOUT_MS: (not set)
   ANTHROPIC_DEFAULT_HAIKU_MODEL: (not set)
   ANTHROPIC_DEFAULT_SONNET_MODEL: (not set)
   ANTHROPIC_DEFAULT_OPUS_MODEL: (not set)
+  CLAUDE_CODE_SUBAGENT_MODEL: (not set)
+  CLAUDE_CODE_EFFORT_LEVEL: (not set)
+  CLAUDE_CODE_ATTRIBUTION_HEADER: (not set)
+  CLAUDE_CODE_AUTO_COMPACT_WINDOW: (not set)
 
 Binaries:
   claude: /usr/local/bin/claude
