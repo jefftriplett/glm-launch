@@ -26,8 +26,5 @@
 @lock:
     uv lock
 
-@publish:
-    uv publish
-
 @sync:
     uv sync
