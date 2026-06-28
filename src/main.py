@@ -375,6 +375,11 @@ def launch_codex(
         envvar="GLM_AUTH_TOKEN",
         help="Z.ai auth token (required)",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Launch anyway against the default Z.ai endpoint (codex needs a Responses API; Z.ai is Chat Completions only)",
+    ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
@@ -387,6 +392,25 @@ def launch_codex(
     if not auth_token:
         typer.echo(
             "codex requires a Z.ai auth token (--auth-token or GLM_AUTH_TOKEN).",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    # codex only speaks the OpenAI Responses API (it removed wire_api="chat").
+    # Z.ai's GLM endpoints are Anthropic Messages and OpenAI Chat Completions --
+    # there is no Responses endpoint, so the default base_url will 404. Refuse up
+    # front unless the user points --base-url at a Responses-capable endpoint
+    # (e.g. a local Responses->Chat bridge) or passes --force.
+    if base_url == CODEX_BASE_URL and not force:
+        typer.echo(
+            "codex is not supported against Z.ai directly: codex requires the "
+            "OpenAI Responses API, but Z.ai only exposes Anthropic Messages and "
+            "OpenAI Chat Completions (no /responses endpoint), so requests 404.\n"
+            "  - Use `glm-launch launch claude` or `glm-launch launch opencode` "
+            "instead (both protocols Z.ai supports).\n"
+            "  - Or point --base-url (GLM_CODEX_BASE_URL) at a Responses-capable "
+            "endpoint such as a local Responses->Chat bridge.\n"
+            "  - Pass --force to launch against the default endpoint anyway.",
             err=True,
         )
         raise typer.Exit(1)
