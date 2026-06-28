@@ -325,3 +325,22 @@ Each provider follows the same pattern:
 3. `os.execvpe()` the binary — fully replacing the glm process with the underlying tool for direct stdio passthrough
 
 For Claude specifically, Z.AI exposes an Anthropic-compatible endpoint at `https://api.z.ai/api/anthropic`, so no local proxy is needed. The CLI sets the standard `ANTHROPIC_*` env vars and Claude Code talks directly to Z.AI.
+
+## Development
+
+Common tasks are wrapped in a [`justfile`](https://github.com/casey/just). Run `just` with no arguments to list them.
+
+| Recipe | Description |
+|--------|-------------|
+| `just bootstrap` | Upgrade `pip`/`uv`, then `uv sync` |
+| `just sync` | `uv sync` the project dependencies |
+| `just lock` | `uv lock` the dependency versions |
+| `just build` | `uv build` the wheel and sdist |
+| `just publish` | `uv publish` to PyPI |
+| `just bump *ARGS` | Bump the CalVer version with `bumpver` (e.g. `just bump`) |
+| `just bump-dry *ARGS` | Preview a version bump without writing changes |
+| `just lint *ARGS` | Run the [prek](https://github.com/j178/prek) hooks (defaults to `--all-files`) |
+| `just fmt` | Format the `justfile` itself |
+| `just demo` | Smoke-test the CLI by listing models |
+
+Versioning follows [CalVer](https://calver.org/) (`YYYY.MM.INC1`), and lint hooks (ruff, pyupgrade, validate-pyproject) are configured in `.pre-commit-config.yaml` and run with `prek`.
