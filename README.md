@@ -2,6 +2,8 @@
 
 A Python CLI tool that wraps LLM coding tools (`claude`, `codex`, `opencode`) with [GLM](https://docs.z.ai/) settings. Instead of running a local proxy, it configures environment variables and config files, then exec's the underlying binary directly.
 
+It works with [Z.AI](https://z.ai/) and their GLM series of models. You'll need a Z.AI API key — grab one with a [Z.AI Coding Plan subscription](https://z.ai/subscribe?ic=GLMN4NLXLV) ([non-affiliate link](https://z.ai/subscribe)).
+
 Requires Python 3.13+.
 
 ## Usage
