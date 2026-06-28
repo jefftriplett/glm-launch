@@ -1,4 +1,4 @@
-# glm-cli-git
+# glm-launch
 
 A Python CLI tool that wraps LLM coding tools (`claude`, `codex`, `opencode`) with [GLM](https://docs.z.ai/) settings. Instead of running a local proxy, it configures environment variables and config files, then exec's the underlying binary directly.
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-glm-cli-git is a Python CLI tool that wraps LLM coding tools (`claude`, `codex`, `opencode`) with GLM settings. It requires Python 3.13+ and uses Typer for CLI handling. Configuration is driven by environment variables (`GLM_BASE_URL`, `GLM_API_KEY`, `GLM_AUTH_TOKEN`).
+glm-launch is a Python CLI tool that wraps LLM coding tools (`claude`, `codex`, `opencode`) with GLM settings. It requires Python 3.13+ and uses Typer for CLI handling. Configuration is driven by environment variables (`GLM_BASE_URL`, `GLM_API_KEY`, `GLM_AUTH_TOKEN`).
 
 ## Commands
 

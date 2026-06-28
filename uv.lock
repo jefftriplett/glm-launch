@@ -21,8 +21,8 @@ wheels = [
 ]
 
 [[package]]
-name = "glm-cli-git"
-version = "0.1.0"
+name = "glm-launch"
+version = "2026.6.1"
 source = { editable = "." }
 dependencies = [
     { name = "typer" },
