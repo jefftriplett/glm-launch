@@ -44,21 +44,17 @@ This installs a `glm-launch` entrypoint. Run commands via `uv run glm-launch <co
 
 ### Run without cloning (`uvx`)
 
-You can run `glm-launch` directly with [`uvx`](https://docs.astral.sh/uv/guides/tools/) (`uv tool run`) — no clone or manual install needed.
+[`glm-launch` is on PyPI](https://pypi.org/project/glm-launch/), so you can run it directly with [`uvx`](https://docs.astral.sh/uv/guides/tools/) (`uv tool run`) — no clone or manual install needed.
 
 ```bash
-# From GitHub (works today)
+# From PyPI
+uvx glm-launch launch claude
+
+# Or straight from GitHub
 uvx --from git+https://github.com/jefftriplett/glm-launch glm-launch launch claude
 
 # Pin to a tag/branch/commit
 uvx --from git+https://github.com/jefftriplett/glm-launch@main glm-launch models
-```
-
-Once published to PyPI, this simplifies to:
-
-```bash
-# Coming soon — not yet on PyPI
-uvx glm-launch launch claude
 ```
 
 ## Commands

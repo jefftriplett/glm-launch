@@ -6,6 +6,11 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = ["typer"]
 
+[project.urls]
+Homepage = "https://github.com/jefftriplett/glm-launch"
+Repository = "https://github.com/jefftriplett/glm-launch"
+Issues = "https://github.com/jefftriplett/glm-launch/issues"
+
 [project.scripts]
 glm-launch = "main:cli"
 
