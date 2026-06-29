@@ -10,8 +10,14 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from importlib import metadata
 
 import typer
+
+try:
+    __version__ = metadata.version("glm-launch")
+except metadata.PackageNotFoundError:  # running as a standalone script
+    __version__ = "2026.6.6"
 
 app = typer.Typer(invoke_without_command=True)
 launch_app = typer.Typer(
@@ -21,8 +27,23 @@ launch_app = typer.Typer(
 app.add_typer(launch_app, name="launch")
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        print(__version__)
+        raise typer.Exit()
+
+
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context) -> None:
+def main(
+    ctx: typer.Context,
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show the version and exit.",
+    ),
+) -> None:
     if ctx.invoked_subcommand is None:
         print(ctx.get_help())
         raise typer.Exit()
