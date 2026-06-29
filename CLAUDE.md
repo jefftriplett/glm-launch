@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-glm-launch is a Python CLI tool that wraps LLM coding tools (`claude` and `opencode`; `codex` is disabled) with GLM settings. It requires Python 3.13+ and uses Typer for CLI handling. Configuration is driven by environment variables (`GLM_BASE_URL`, `GLM_API_KEY`, `GLM_AUTH_TOKEN`).
+glm-launch is a Python CLI tool that wraps Claude Code (`claude`) with GLM settings (`codex` and `opencode` are not supported). It requires Python 3.13+ and uses Typer for CLI handling. Configuration is driven by environment variables (`GLM_BASE_URL`, `GLM_API_KEY`, `GLM_AUTH_TOKEN`).
 
 ## Commands
 
@@ -22,9 +22,6 @@ uv run src/main.py launch claude
 uv run src/main.py launch claude --model "some-model"
 
 # codex is disabled (Z.ai has no OpenAI Responses API endpoint); it prints a note and exits
-
-# Launch opencode (writes config JSON, then runs)
-uv run src/main.py launch opencode --model "some-model"
 
 # Pass extra args through to the underlying tool
 uv run src/main.py launch claude -- --verbose
@@ -48,6 +45,5 @@ Single-module project with entry point at `src/main.py` (the installed `glm-laun
 
 - **claude** — Sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_DEFAULT_*_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`, `CLAUDE_CODE_ATTRIBUTION_HEADER`, and `CLAUDE_CODE_AUTO_COMPACT_WINDOW` env vars from GLM settings, passes `--model` flag. Falls back to `~/.claude/local/claude` if not on PATH.
 - **codex** — Disabled. Z.ai exposes only Anthropic Messages and OpenAI Chat Completions, but current codex requires the OpenAI Responses API (no `/responses` endpoint → 404). The command prints an explanation and exits 1.
-- **opencode** — Writes provider config to `~/.config/opencode/opencode.json` and recent model state to `~/.local/state/opencode/model.json`, then execs the binary. No env vars.
 
 All providers exec the underlying binary via `os.execvpe()` for full stdio passthrough.

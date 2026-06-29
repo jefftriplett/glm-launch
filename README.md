@@ -1,6 +1,6 @@
 # glm-launch
 
-A Python CLI tool that wraps LLM coding tools (`claude` and `opencode`) with [GLM](https://docs.z.ai/) settings. Instead of running a local proxy, it configures environment variables and config files, then exec's the underlying binary directly. (`codex` is [not supported](#launch-codex-not-supported) — Z.AI has no OpenAI Responses API endpoint.)
+A Python CLI tool that wraps [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with [GLM](https://docs.z.ai/) settings. Instead of running a local proxy, it configures environment variables, then exec's the `claude` binary directly. (`codex` is [not supported](#launch-codex-not-supported) — Z.AI has no OpenAI Responses API endpoint.)
 
 It works with [Z.AI](https://z.ai/) and their GLM series of models. You'll need a Z.AI API key — grab one with a [Z.AI Coding Plan subscription](https://z.ai/subscribe?ic=GLMN4NLXLV). Using that referral link gives you 10% off and gets me 10% off too. Prefer not to? Here's a [non-affiliate link](https://z.ai/subscribe).
 
@@ -65,7 +65,7 @@ uvx --from git+https://github.com/jefftriplett/glm-launch@main glm-launch models
 
 Launch [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with GLM environment settings. Sets Anthropic env vars to route requests through Z.AI's Anthropic-compatible endpoint, then exec's the `claude` binary.
 
-> The `launch` prefix is optional: `glm-launch claude` is equivalent to `glm-launch launch claude`, and a bare `glm-launch` defaults to `claude`. The same applies to `opencode`.
+> The `launch` prefix is optional: `glm-launch claude` is equivalent to `glm-launch launch claude`, and a bare `glm-launch` defaults to `claude`.
 
 ```bash
 uv run glm-launch launch claude
@@ -145,36 +145,7 @@ If `claude` is not on your PATH, the tool falls back to `~/.claude/local/claude`
 
 [Codex](https://github.com/openai/codex) is **not supported** by glm-launch. Current codex only speaks the OpenAI **Responses API** (it removed `wire_api = "chat"`), but Z.AI's GLM endpoints are **Anthropic Messages** and **OpenAI Chat Completions** only — there is no `/responses` endpoint, so codex requests return `404`. The `codex` command is intentionally disabled and exits with this explanation.
 
-Use [`launch claude`](#launch-claude) or [`launch opencode`](#launch-opencode) instead — both use protocols Z.AI supports. If Z.AI later ships a Responses-compatible endpoint, codex support can be revisited.
-
-### `launch opencode`
-
-Launch [opencode](https://opencode.ai/) after writing provider config. Writes an OpenAI-compatible `glm` provider to `~/.config/opencode/opencode.json` and updates the recent model state at `~/.local/state/opencode/model.json`, then exec's the `opencode` binary.
-
-```bash
-uv run glm-launch launch opencode --model "some-model"
-```
-
-**Options:**
-
-| Flag | Env var | Default | Description |
-|------|---------|---------|-------------|
-| `--model` / `-m` | — | — | Model name to configure in opencode |
-| `--base-url` | `GLM_BASE_URL` | **(required)** | Base URL for the API endpoint |
-| `--dry-run` | — | `false` | Print the resolved command and config changes without launching or writing files |
-
-**Examples:**
-
-```bash
-# Launch with a model
-GLM_BASE_URL="http://localhost:11434/v1" uv run glm-launch launch opencode --model "llama3"
-
-# Pass extra args through to opencode
-uv run glm-launch launch opencode --model "llama3" -- --some-flag
-
-# Inspect config changes without writing files or launching opencode
-uv run glm-launch launch opencode --model "llama3" --dry-run
-```
+Use [`launch claude`](#launch-claude) instead — it uses Z.AI's Anthropic-compatible endpoint. If Z.AI later ships a Responses-compatible endpoint, codex support can be revisited.
 
 ### `shell`
 
@@ -255,8 +226,7 @@ uv run glm-launch doctor
 **Checks performed:**
 
 - **Environment variables** — Whether the GLM, Anthropic default-model, and Claude Code env vars used by the launch commands are set. Secrets are masked in output.
-- **Binaries** — Whether `claude` and `opencode` are found on PATH (with fallback to `~/.claude/local/claude` for claude).
-- **Config files** — Whether `~/.config/opencode/opencode.json` and `~/.local/state/opencode/model.json` exist.
+- **Binaries** — Whether `claude` is found on PATH (with fallback to `~/.claude/local/claude`).
 
 Exits with code 1 if any binary is missing, 0 otherwise.
 
@@ -279,11 +249,6 @@ Environment variables:
 
 Binaries:
   claude: /usr/local/bin/claude
-  opencode: /usr/local/bin/opencode
-
-Config files:
-  /home/user/.config/opencode/opencode.json: exists
-  /home/user/.local/state/opencode/model.json: not found
 
 All checks passed.
 ```
@@ -292,7 +257,7 @@ All checks passed.
 
 | Variable | Used by | Description |
 |----------|---------|-------------|
-| `GLM_BASE_URL` | `launch claude`, `launch opencode`, `shell` | API base URL |
+| `GLM_BASE_URL` | `launch claude`, `shell` | API base URL |
 | `GLM_API_KEY` | `launch claude`, `shell` | API key |
 | `GLM_AUTH_TOKEN` | `launch claude`, `shell`, `bench`, `models --remote` | Z.AI auth token (required) |
 | `GLM_MODELS_URL` | `models --remote` | PaaS models endpoint |
@@ -307,13 +272,13 @@ All checks passed.
 
 ## How it works
 
-Each provider follows the same pattern:
+`launch claude` follows three steps:
 
-1. Resolve the binary on PATH (with optional fallback path)
-2. Set up configuration (env vars for claude, config files for opencode)
-3. `os.execvpe()` the binary — fully replacing the glm process with the underlying tool for direct stdio passthrough
+1. Resolve the `claude` binary on PATH (falling back to `~/.claude/local/claude`)
+2. Set up the GLM environment variables
+3. `os.execvpe()` the binary — fully replacing the glm process with `claude` for direct stdio passthrough
 
-For Claude specifically, Z.AI exposes an Anthropic-compatible endpoint at `https://api.z.ai/api/anthropic`, so no local proxy is needed. The CLI sets the standard `ANTHROPIC_*` env vars and Claude Code talks directly to Z.AI.
+Z.AI exposes an Anthropic-compatible endpoint at `https://api.z.ai/api/anthropic`, so no local proxy is needed. The CLI sets the standard `ANTHROPIC_*` env vars and Claude Code talks directly to Z.AI.
 
 ## Development
 

@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import tempfile
 
 import typer
 
@@ -63,7 +62,6 @@ _SECRET_VARS = {
     "GLM_AUTH_TOKEN",
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
-    "OPENAI_API_KEY",
 }
 
 
@@ -287,7 +285,7 @@ def launch_claude(
 # codex is intentionally disabled. codex only speaks the OpenAI Responses API
 # (it removed wire_api="chat"), but Z.ai's GLM endpoints are Anthropic Messages
 # and OpenAI Chat Completions only -- there is no /responses endpoint, so codex
-# requests 404. Use the claude or opencode providers instead.
+# requests 404. Use the claude provider instead.
 @launch_app.command(
     "codex",
     context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
@@ -299,183 +297,10 @@ def launch_codex(ctx: typer.Context) -> None:
         "codex requires the OpenAI Responses API, but Z.ai's GLM only exposes "
         "Anthropic Messages and OpenAI Chat Completions (no /responses endpoint), "
         "so codex requests 404.\n"
-        "Use `glm-launch launch claude` or `glm-launch launch opencode` instead.",
+        "Use `glm-launch launch claude` instead.",
         err=True,
     )
     raise typer.Exit(1)
-
-
-# ---------------------------------------------------------------------------
-# launch opencode
-# ---------------------------------------------------------------------------
-
-OPENCODE_PROVIDER_ID = "glm"
-OPENCODE_PROVIDER_NAME = "GLM Launch"
-
-
-def _read_json_object(path: str) -> dict:
-    """Read a JSON object, preserving user files by failing on invalid content."""
-    if not os.path.isfile(path):
-        return {}
-
-    try:
-        with open(path) as f:
-            data = json.load(f)
-    except json.JSONDecodeError as e:
-        raise SystemExit(f"{path} is not valid JSON: {e}") from e
-    except OSError as e:
-        raise SystemExit(f"Could not read {path}: {e}") from e
-
-    if not isinstance(data, dict):
-        raise SystemExit(f"{path} must contain a JSON object.")
-    return data
-
-
-def _write_json_object(path: str, data: dict) -> None:
-    """Atomically write a JSON object."""
-    directory = os.path.dirname(path)
-    os.makedirs(directory, mode=0o755, exist_ok=True)
-
-    tmp_path = ""
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w", dir=directory, delete=False, encoding="utf-8"
-        ) as f:
-            tmp_path = f.name
-            json.dump(data, f, indent=2)
-            f.write("\n")
-        os.replace(tmp_path, path)
-    except OSError as e:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-        raise SystemExit(f"Could not write {path}: {e}") from e
-
-
-def _write_opencode_config(model: str | None, base_url: str) -> None:
-    """Write (or update) ~/.config/opencode/opencode.json and state file."""
-    config_dir = os.path.expanduser("~/.config/opencode")
-    config_path = os.path.join(config_dir, "opencode.json")
-
-    config = _read_json_object(config_path)
-
-    config.setdefault("$schema", "https://opencode.ai/config.json")
-    providers = config.setdefault("provider", {})
-    if not isinstance(providers, dict):
-        raise SystemExit(f"{config_path}: 'provider' must be a JSON object.")
-
-    provider = providers.setdefault(OPENCODE_PROVIDER_ID, {})
-    if not isinstance(provider, dict):
-        raise SystemExit(
-            f"{config_path}: provider '{OPENCODE_PROVIDER_ID}' must be a JSON object."
-        )
-
-    provider["npm"] = "@ai-sdk/openai-compatible"
-    provider["name"] = OPENCODE_PROVIDER_NAME
-
-    options = provider.setdefault("options", {})
-    if not isinstance(options, dict):
-        raise SystemExit(
-            f"{config_path}: provider '{OPENCODE_PROVIDER_ID}'.options must be a JSON object."
-        )
-    options["baseURL"] = base_url
-
-    models = provider.setdefault("models", {})
-    if not isinstance(models, dict):
-        raise SystemExit(
-            f"{config_path}: provider '{OPENCODE_PROVIDER_ID}'.models must be a JSON object."
-        )
-
-    if model:
-        models[model] = {"name": model, "_launch": True}
-
-    _write_json_object(config_path, config)
-
-    # Update state/model.json with recent model
-    if model:
-        state_dir = os.path.expanduser("~/.local/state/opencode")
-        state_path = os.path.join(state_dir, "model.json")
-
-        state = _read_json_object(state_path)
-
-        recent = state.setdefault("recent", [])
-        if not isinstance(recent, list):
-            recent = []
-        state.setdefault("favorite", [])
-        state.setdefault("variant", {})
-
-        entry = {"providerID": OPENCODE_PROVIDER_ID, "modelID": model}
-        recent = [
-            r
-            for r in recent
-            if not (
-                isinstance(r, dict)
-                and r.get("providerID") == OPENCODE_PROVIDER_ID
-                and r.get("modelID") == model
-            )
-        ]
-        recent.insert(0, entry)
-        state["recent"] = recent[:10]
-
-        _write_json_object(state_path, state)
-
-
-def _opencode_config_changes(model: str | None, base_url: str) -> list[str]:
-    config_path = os.path.expanduser("~/.config/opencode/opencode.json")
-    state_path = os.path.expanduser("~/.local/state/opencode/model.json")
-    changes = [
-        f"would set {config_path}: provider.{OPENCODE_PROVIDER_ID}.npm=@ai-sdk/openai-compatible",
-        f"would set {config_path}: provider.{OPENCODE_PROVIDER_ID}.name={OPENCODE_PROVIDER_NAME}",
-        f"would set {config_path}: provider.{OPENCODE_PROVIDER_ID}.options.baseURL={base_url}",
-    ]
-    if model:
-        changes.append(
-            f"would set {config_path}: provider.{OPENCODE_PROVIDER_ID}.models.{model}"
-        )
-        changes.append(
-            f"would update {state_path}: recent[0]={OPENCODE_PROVIDER_ID}/{model}"
-        )
-    return changes
-
-
-@launch_app.command(
-    "opencode",
-    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
-)
-def launch_opencode(
-    ctx: typer.Context,
-    model: str = typer.Option(None, "--model", "-m", help="Model name for opencode"),
-    base_url: str = typer.Option(
-        ...,
-        "--base-url",
-        envvar="GLM_BASE_URL",
-        help="Base URL for the API endpoint",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Print the resolved command and config changes without launching or writing files",
-    ),
-) -> None:
-    """Launch opencode after writing provider config."""
-    binary = _find_binary("opencode")
-
-    cmd_args = [binary]
-    cmd_args.extend(ctx.args)
-
-    if dry_run:
-        _print_dry_run(
-            binary=binary,
-            cmd_args=cmd_args,
-            config_changes=_opencode_config_changes(model, base_url),
-        )
-        return
-
-    _write_opencode_config(model, base_url)
-
-    os.execvpe(binary, cmd_args, os.environ)
 
 
 # ---------------------------------------------------------------------------
@@ -560,7 +385,6 @@ def shell(
 
 def _fetch_remote_models(models_url: str, auth_token: str, timeout: float) -> list[str]:
     """Fetch the live model ID list from the Z.ai PaaS /models endpoint."""
-    import json
     import urllib.error
     import urllib.request
 
@@ -652,7 +476,6 @@ def bench(
     timeout: float = typer.Option(30.0, "--timeout", help="Request timeout in seconds"),
 ) -> None:
     """Time a single /v1/messages round-trip against the configured endpoint."""
-    import json
     import time
     import urllib.error
     import urllib.request
@@ -717,7 +540,6 @@ _CLAUDE_ENV_VARS = [
 
 _BINARIES = [
     ("claude", "~/.claude/local/claude"),
-    ("opencode", None),
 ]
 
 
@@ -753,20 +575,6 @@ def doctor() -> None:
             ok = False
 
     print()
-    print("Config files:")
-    opencode_config = os.path.expanduser("~/.config/opencode/opencode.json")
-    if os.path.isfile(opencode_config):
-        print(f"  {opencode_config}: exists")
-    else:
-        print(f"  {opencode_config}: not found")
-
-    opencode_state = os.path.expanduser("~/.local/state/opencode/model.json")
-    if os.path.isfile(opencode_state):
-        print(f"  {opencode_state}: exists")
-    else:
-        print(f"  {opencode_state}: not found")
-
-    print()
     if ok:
         print("All checks passed.")
     else:
@@ -783,7 +591,6 @@ def doctor() -> None:
 _PROVIDER_CTX = {"allow_extra_args": True, "allow_interspersed_args": False}
 app.command("claude", context_settings=_PROVIDER_CTX)(launch_claude)
 app.command("codex", context_settings=_PROVIDER_CTX)(launch_codex)
-app.command("opencode", context_settings=_PROVIDER_CTX)(launch_opencode)
 
 
 # ---------------------------------------------------------------------------
