@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-glm-launch is a Python CLI tool that wraps LLM coding tools (`claude`, `codex`, `opencode`) with GLM settings. It requires Python 3.13+ and uses Typer for CLI handling. Configuration is driven by environment variables (`GLM_BASE_URL`, `GLM_API_KEY`, `GLM_AUTH_TOKEN`).
+glm-launch is a Python CLI tool that wraps Claude Code (`claude`) with GLM settings (`codex` and `opencode` are not supported). It requires Python 3.13+ and uses Typer for CLI handling. Configuration is driven by environment variables (`GLM_BASE_URL`, `GLM_API_KEY`, `GLM_AUTH_TOKEN`).
 
 ## Commands
 
@@ -21,11 +21,7 @@ uv run src/main.py launch claude
 # Launch claude with a specific model
 uv run src/main.py launch claude --model "some-model"
 
-# Launch codex (always passes --oss)
-uv run src/main.py launch codex --model "some-model"
-
-# Launch opencode (writes config JSON, then runs)
-uv run src/main.py launch opencode --model "some-model"
+# codex is disabled (Z.ai has no OpenAI Responses API endpoint); it prints a note and exits
 
 # Pass extra args through to the underlying tool
 uv run src/main.py launch claude -- --verbose
@@ -48,7 +44,6 @@ eval "$(uv run src/main.py shell)"
 Single-module project with entry point at `src/main.py` (the installed `glm-launch` console script calls `cli()`, which defaults to the `claude` provider when no command is given). Uses Typer with a two-level command structure: `glm launch <provider>`. Providers are also registered at the top level so `glm-launch <provider>` works without the `launch` prefix. Each provider gets its own `@launch_app.command()` with provider-specific setup logic:
 
 - **claude** — Sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_DEFAULT_*_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`, `CLAUDE_CODE_ATTRIBUTION_HEADER`, and `CLAUDE_CODE_AUTO_COMPACT_WINDOW` env vars from GLM settings, passes `--model` flag. Falls back to `~/.claude/local/claude` if not on PATH.
-- **codex** — Always passes `--oss` flag, passes `-m` for model. No env vars or config files.
-- **opencode** — Writes provider config to `~/.config/opencode/opencode.json` and recent model state to `~/.local/state/opencode/model.json`, then execs the binary. No env vars.
+- **codex** — Disabled. Z.ai exposes only Anthropic Messages and OpenAI Chat Completions, but current codex requires the OpenAI Responses API (no `/responses` endpoint → 404). The command prints an explanation and exits 1.
 
 All providers exec the underlying binary via `os.execvpe()` for full stdio passthrough.
