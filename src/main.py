@@ -87,10 +87,10 @@ _SECRET_VARS = {
 
 
 def _mask(value: str) -> str:
-    """Show first 4 and last 4 chars, mask the rest."""
+    """Show only the first few chars, mask the rest."""
     if len(value) <= 10:
         return value[:2] + "***"
-    return value[:4] + "***" + value[-4:]
+    return value[:4] + "***"
 
 
 def _display_value(key: str, value: str) -> str:
@@ -163,7 +163,6 @@ def _build_claude_env(
     """Build the GLM env vars claude needs to talk to Z.ai."""
     env = {
         "ANTHROPIC_BASE_URL": base_url,
-        "ANTHROPIC_API_KEY": api_key,
         "ANTHROPIC_AUTH_TOKEN": auth_token,
         "API_TIMEOUT_MS": api_timeout_ms,
         "ANTHROPIC_DEFAULT_HAIKU_MODEL": default_haiku_model,
@@ -173,6 +172,8 @@ def _build_claude_env(
         "CLAUDE_CODE_EFFORT_LEVEL": effort_level,
         "CLAUDE_CODE_ATTRIBUTION_HEADER": attribution_header,
     }
+    if api_key:
+        env["ANTHROPIC_API_KEY"] = api_key
     if model:
         env["ANTHROPIC_MODEL"] = model
     if auto_compact_window:
