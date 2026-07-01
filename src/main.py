@@ -285,6 +285,10 @@ def launch_claude(
         auto_compact_window=auto_compact_window,
     )
     env = os.environ.copy()
+    if not api_key:
+        # Without a GLM api key, drop any inherited ANTHROPIC_API_KEY -- claude
+        # may prefer an api key over the auth token and route away from Z.ai.
+        env.pop("ANTHROPIC_API_KEY", None)
     env.update(glm_env)
 
     cmd_args = [binary]
