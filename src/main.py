@@ -17,7 +17,7 @@ import typer
 try:
     __version__ = metadata.version("glm-launch")
 except metadata.PackageNotFoundError:  # running as a standalone script
-    __version__ = "2026.6.6"
+    __version__ = "2026.7.1"
 
 app = typer.Typer(invoke_without_command=True)
 launch_app = typer.Typer(
