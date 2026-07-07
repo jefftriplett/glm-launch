@@ -144,6 +144,73 @@ def _find_binary(name: str, fallback_path: str | None = None) -> str:
 # Claude / GLM environment
 # ---------------------------------------------------------------------------
 
+# Shared option declarations for `launch claude` and `shell`, so each
+# flag/envvar/default/help lives in exactly one place.
+MODEL_OPTION = typer.Option(
+    "glm-5.2",
+    "--model",
+    "-m",
+    help="Model name (ANTHROPIC_MODEL, passed to claude --model)",
+)
+BASE_URL_OPTION = typer.Option(
+    "https://api.z.ai/api/anthropic",
+    "--base-url",
+    envvar="GLM_BASE_URL",
+    help="Base URL for the API endpoint",
+)
+API_KEY_OPTION = typer.Option("", "--api-key", envvar="GLM_API_KEY", help="API key")
+AUTH_TOKEN_OPTION = typer.Option(
+    ..., "--auth-token", envvar="GLM_AUTH_TOKEN", help="Auth token"
+)
+API_TIMEOUT_MS_OPTION = typer.Option(
+    "3000000",
+    "--api-timeout-ms",
+    envvar="API_TIMEOUT_MS",
+    help="API request timeout in milliseconds",
+)
+DEFAULT_HAIKU_MODEL_OPTION = typer.Option(
+    "glm-4.5-air",
+    "--default-haiku-model",
+    envvar="ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    help="Default model for Haiku-tier requests",
+)
+DEFAULT_SONNET_MODEL_OPTION = typer.Option(
+    "glm-5.2",
+    "--default-sonnet-model",
+    envvar="ANTHROPIC_DEFAULT_SONNET_MODEL",
+    help="Default model for Sonnet-tier requests",
+)
+DEFAULT_OPUS_MODEL_OPTION = typer.Option(
+    "glm-5.2",
+    "--default-opus-model",
+    envvar="ANTHROPIC_DEFAULT_OPUS_MODEL",
+    help="Default model for Opus-tier requests",
+)
+SUBAGENT_MODEL_OPTION = typer.Option(
+    "glm-4.5-air",
+    "--subagent-model",
+    envvar="CLAUDE_CODE_SUBAGENT_MODEL",
+    help="Model used for spawned subagents",
+)
+EFFORT_LEVEL_OPTION = typer.Option(
+    "max",
+    "--effort-level",
+    envvar="CLAUDE_CODE_EFFORT_LEVEL",
+    help="Effort level (e.g. max)",
+)
+ATTRIBUTION_HEADER_OPTION = typer.Option(
+    "0",
+    "--attribution-header",
+    envvar="CLAUDE_CODE_ATTRIBUTION_HEADER",
+    help="Attribution header toggle (0 disables it)",
+)
+AUTO_COMPACT_WINDOW_OPTION = typer.Option(
+    "200000",
+    "--auto-compact-window",
+    envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW",
+    help="Auto-compact context window (token count); empty to leave unset",
+)
+
 
 def _build_claude_env(
     *,
@@ -192,75 +259,18 @@ def _build_claude_env(
 )
 def launch_claude(
     ctx: typer.Context,
-    model: str = typer.Option(
-        "glm-5.2", "--model", "-m", help="Model name to pass to claude"
-    ),
-    base_url: str = typer.Option(
-        "https://api.z.ai/api/anthropic",
-        "--base-url",
-        envvar="GLM_BASE_URL",
-        help="Base URL for the API endpoint",
-    ),
-    api_key: str = typer.Option(
-        "",
-        "--api-key",
-        envvar="GLM_API_KEY",
-        help="API key",
-    ),
-    auth_token: str = typer.Option(
-        ...,
-        "--auth-token",
-        envvar="GLM_AUTH_TOKEN",
-        help="Auth token",
-    ),
-    api_timeout_ms: str = typer.Option(
-        "3000000",
-        "--api-timeout-ms",
-        envvar="API_TIMEOUT_MS",
-        help="API request timeout in milliseconds",
-    ),
-    default_haiku_model: str = typer.Option(
-        "glm-4.5-air",
-        "--default-haiku-model",
-        envvar="ANTHROPIC_DEFAULT_HAIKU_MODEL",
-        help="Default model for Haiku-tier requests",
-    ),
-    default_sonnet_model: str = typer.Option(
-        "glm-5.2",
-        "--default-sonnet-model",
-        envvar="ANTHROPIC_DEFAULT_SONNET_MODEL",
-        help="Default model for Sonnet-tier requests",
-    ),
-    default_opus_model: str = typer.Option(
-        "glm-5.2",
-        "--default-opus-model",
-        envvar="ANTHROPIC_DEFAULT_OPUS_MODEL",
-        help="Default model for Opus-tier requests",
-    ),
-    subagent_model: str = typer.Option(
-        "glm-4.5-air",
-        "--subagent-model",
-        envvar="CLAUDE_CODE_SUBAGENT_MODEL",
-        help="Model used for spawned subagents",
-    ),
-    effort_level: str = typer.Option(
-        "max",
-        "--effort-level",
-        envvar="CLAUDE_CODE_EFFORT_LEVEL",
-        help="Effort level (e.g. max)",
-    ),
-    attribution_header: str = typer.Option(
-        "0",
-        "--attribution-header",
-        envvar="CLAUDE_CODE_ATTRIBUTION_HEADER",
-        help="Attribution header toggle (0 disables it)",
-    ),
-    auto_compact_window: str = typer.Option(
-        "200000",
-        "--auto-compact-window",
-        envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW",
-        help="Auto-compact context window (token count); empty to leave unset",
-    ),
+    model: str = MODEL_OPTION,
+    base_url: str = BASE_URL_OPTION,
+    api_key: str = API_KEY_OPTION,
+    auth_token: str = AUTH_TOKEN_OPTION,
+    api_timeout_ms: str = API_TIMEOUT_MS_OPTION,
+    default_haiku_model: str = DEFAULT_HAIKU_MODEL_OPTION,
+    default_sonnet_model: str = DEFAULT_SONNET_MODEL_OPTION,
+    default_opus_model: str = DEFAULT_OPUS_MODEL_OPTION,
+    subagent_model: str = SUBAGENT_MODEL_OPTION,
+    effort_level: str = EFFORT_LEVEL_OPTION,
+    attribution_header: str = ATTRIBUTION_HEADER_OPTION,
+    auto_compact_window: str = AUTO_COMPACT_WINDOW_OPTION,
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
@@ -341,43 +351,18 @@ def _shell_quote(value: str) -> str:
 
 @app.command()
 def shell(
-    model: str = typer.Option(
-        "glm-5.2", "--model", "-m", help="Top-level model (ANTHROPIC_MODEL)"
-    ),
-    base_url: str = typer.Option(
-        "https://api.z.ai/api/anthropic",
-        "--base-url",
-        envvar="GLM_BASE_URL",
-        help="Base URL for the API endpoint",
-    ),
-    api_key: str = typer.Option("", "--api-key", envvar="GLM_API_KEY", help="API key"),
-    auth_token: str = typer.Option(
-        ..., "--auth-token", envvar="GLM_AUTH_TOKEN", help="Auth token"
-    ),
-    api_timeout_ms: str = typer.Option(
-        "3000000", "--api-timeout-ms", envvar="API_TIMEOUT_MS"
-    ),
-    default_haiku_model: str = typer.Option(
-        "glm-4.5-air", "--default-haiku-model", envvar="ANTHROPIC_DEFAULT_HAIKU_MODEL"
-    ),
-    default_sonnet_model: str = typer.Option(
-        "glm-5.2", "--default-sonnet-model", envvar="ANTHROPIC_DEFAULT_SONNET_MODEL"
-    ),
-    default_opus_model: str = typer.Option(
-        "glm-5.2", "--default-opus-model", envvar="ANTHROPIC_DEFAULT_OPUS_MODEL"
-    ),
-    subagent_model: str = typer.Option(
-        "glm-4.5-air", "--subagent-model", envvar="CLAUDE_CODE_SUBAGENT_MODEL"
-    ),
-    effort_level: str = typer.Option(
-        "max", "--effort-level", envvar="CLAUDE_CODE_EFFORT_LEVEL"
-    ),
-    attribution_header: str = typer.Option(
-        "0", "--attribution-header", envvar="CLAUDE_CODE_ATTRIBUTION_HEADER"
-    ),
-    auto_compact_window: str = typer.Option(
-        "200000", "--auto-compact-window", envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW"
-    ),
+    model: str = MODEL_OPTION,
+    base_url: str = BASE_URL_OPTION,
+    api_key: str = API_KEY_OPTION,
+    auth_token: str = AUTH_TOKEN_OPTION,
+    api_timeout_ms: str = API_TIMEOUT_MS_OPTION,
+    default_haiku_model: str = DEFAULT_HAIKU_MODEL_OPTION,
+    default_sonnet_model: str = DEFAULT_SONNET_MODEL_OPTION,
+    default_opus_model: str = DEFAULT_OPUS_MODEL_OPTION,
+    subagent_model: str = SUBAGENT_MODEL_OPTION,
+    effort_level: str = EFFORT_LEVEL_OPTION,
+    attribution_header: str = ATTRIBUTION_HEADER_OPTION,
+    auto_compact_window: str = AUTO_COMPACT_WINDOW_OPTION,
 ) -> None:
     """Print `export` lines to bootstrap the current shell for Z.ai.
 
