@@ -17,6 +17,11 @@
 @demo:
     uv run glm-launch models
 
+# Grab Z.AI's full docs dump as a local (gitignored) reference
+@docs:
+    curl -sL https://docs.z.ai/llms-full.txt -o zai-llms-full.txt
+    echo "Saved zai-llms-full.txt"
+
 @fmt:
     just --fmt --unstable
 
