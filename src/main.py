@@ -673,6 +673,9 @@ def doctor() -> None:
         if value:
             display = _mask(value) if var in _SECRET_VARS else value
             print(f"  {var}: {display}")
+        elif var == "GLM_AUTH_TOKEN":
+            print(f"  {var}: NOT SET (required)")
+            ok = False
         else:
             print(f"  {var}: (not set)")
 

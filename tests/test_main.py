@@ -78,3 +78,25 @@ def test_version_option() -> None:
 
     assert result.exit_code == 0
     assert result.stdout.strip() == main.__version__
+
+
+def test_doctor_fails_when_auth_token_is_missing(monkeypatch) -> None:
+    monkeypatch.setattr(main.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(main, "_binary_version", lambda path: "1.0.0")
+
+    result = runner.invoke(main.app, ["doctor"], env={"GLM_AUTH_TOKEN": ""})
+
+    assert result.exit_code == 1
+    assert "GLM_AUTH_TOKEN: NOT SET (required)" in result.stdout
+    assert "Some checks failed." in result.stdout
+
+
+def test_doctor_passes_with_auth_token_and_claude(monkeypatch) -> None:
+    monkeypatch.setattr(main.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(main, "_binary_version", lambda path: "1.0.0")
+
+    result = runner.invoke(main.app, ["doctor"], env={"GLM_AUTH_TOKEN": "secret-token"})
+
+    assert result.exit_code == 0
+    assert "GLM_AUTH_TOKEN: secr***" in result.stdout
+    assert "All checks passed." in result.stdout
