@@ -66,7 +66,7 @@ uvx --from git+https://github.com/jefftriplett/glm-launch@main glm-launch models
 
 Launch [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with GLM environment settings. Sets Anthropic env vars to route requests through Z.AI's Anthropic-compatible endpoint, then exec's the `claude` binary.
 
-> The `launch` prefix is optional: `glm-launch claude` is equivalent to `glm-launch launch claude`, and a bare `glm-launch` defaults to `claude`.
+> The `launch` prefix is optional: `glm-launch claude` is equivalent to `glm-launch launch claude`, and a bare `glm-launch` defaults to `claude`. Claude options can also be passed directly, so `glm-launch --model glm-5.1` is equivalent to `glm-launch claude --model glm-5.1`.
 
 ```bash
 uv run glm-launch launch claude
@@ -80,16 +80,16 @@ uv run glm-launch launch claude
 | `--base-url` | `GLM_BASE_URL` | `https://api.z.ai/api/anthropic` | API endpoint |
 | `--api-key` | `GLM_API_KEY` | `""` | API key |
 | `--auth-token` | `GLM_AUTH_TOKEN` | **(required)** | Z.AI auth token |
-| `--api-timeout-ms` | `API_TIMEOUT_MS` | `3000000` | Request timeout in milliseconds |
+| `--api-timeout-ms` | `API_TIMEOUT_MS` | `3000000` | Request timeout in milliseconds (positive integer) |
 | `--default-haiku-model` | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `glm-4.5-air` | Model for Haiku-tier requests |
 | `--default-sonnet-model` | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `glm-5.2[1m]` | Model for Sonnet-tier requests |
 | `--default-opus-model` | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `glm-5.2[1m]` | Model for Opus-tier requests |
 | `--default-fable-model` | `ANTHROPIC_DEFAULT_FABLE_MODEL` | `glm-5.2[1m]` | Model for Fable-tier requests |
 | `--subagent-model` | `CLAUDE_CODE_SUBAGENT_MODEL` | `glm-4.5-air` | Model used for spawned subagents |
-| `--effort-level` | `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort level for the agent loop (see [Effort levels](#effort-levels)) |
-| `--attribution-header` | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `0` | Attribution header toggle (`0` disables it) |
-| `--auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `auto` | Auto-compact context window in tokens (`auto` sizes it to the model, empty to leave unset) |
-| `--max-context-tokens` | `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | `auto` | Maximum context token budget (`auto` sizes it to the model, empty to leave unset) |
+| `--effort-level` | `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort level for the agent loop: `low`, `medium`, `high`, `xhigh`, `max`, or `ultracode` (see [Effort levels](#effort-levels)) |
+| `--attribution-header` | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `0` | Attribution header toggle (`0` or `1`; `0` disables it) |
+| `--auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `auto` | Auto-compact context window (`auto`, empty, or a positive integer) |
+| `--max-context-tokens` | `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | `auto` | Maximum context budget (`auto`, empty, or a positive integer) |
 | `--dry-run` | — | `false` | Print the resolved command and masked GLM environment without launching |
 
 The following env vars are set before exec'ing `claude`:
@@ -227,7 +227,7 @@ uv run glm-launch models --remote
 | `--remote` / `-r` | — | `false` | Fetch the live list from the Z.AI API |
 | `--models-url` | `GLM_MODELS_URL` | `https://api.z.ai/api/coding/paas/v4/models` | PaaS models endpoint (used with `--remote`) |
 | `--auth-token` | `GLM_AUTH_TOKEN` | — | Auth token (required with `--remote`) |
-| `--timeout` | — | `30.0` | Request timeout in seconds |
+| `--timeout` | — | `30.0` | Request timeout in seconds (must be greater than zero) |
 
 The live endpoint is the OpenAI-compatible coding PaaS base (`/api/coding/paas/v4/models`) and uses `Authorization: Bearer <token>` — distinct from the Anthropic-style chat base (`/api/anthropic`) used by `launch claude` and `bench`. Coding Plan keys only work through the coding endpoints; if you have a general Z.AI API key instead, point `--models-url` at `https://api.z.ai/api/paas/v4/models`.
 
@@ -246,7 +246,7 @@ uv run glm-launch bench
 | `--model` / `-m` | — | `glm-5.2` | Model to benchmark |
 | `--base-url` | `GLM_BASE_URL` | `https://api.z.ai/api/anthropic` | API endpoint |
 | `--auth-token` | `GLM_AUTH_TOKEN` | **(required)** | Auth token for the endpoint |
-| `--timeout` | — | `30.0` | Request timeout in seconds |
+| `--timeout` | — | `30.0` | Request timeout in seconds (must be greater than zero) |
 
 Sends a minimal 32-token request and prints the round-trip time. Exits non-zero on HTTP error or timeout.
 
@@ -267,7 +267,7 @@ uv run glm-launch usage
 
 ### `doctor`
 
-Check your environment for correct setup. Reports on environment variables, binary availability, and config files.
+Check your environment for correct setup. Reports on environment variables and binary availability.
 
 ```bash
 uv run glm-launch doctor
@@ -275,10 +275,11 @@ uv run glm-launch doctor
 
 **Checks performed:**
 
-- **Environment variables** — Whether the GLM, Anthropic default-model, and Claude Code env vars used by the launch commands are set. Secrets are masked in output.
+- **Authentication** — Whether the required `GLM_AUTH_TOKEN` is set. The token is masked in output.
+- **Environment variables** — Whether the optional GLM, Anthropic default-model, and Claude Code env vars used by the launch commands are set.
 - **Binaries** — Whether `claude` is found on PATH (with fallback to `~/.claude/local/claude`), including its version — the default `glm-5.2[1m]` model needs a recent Claude Code, so if claude reports the `[1m]` model doesn't exist, upgrade.
 
-Exits with code 1 if any binary is missing, 0 otherwise.
+Exits with code 1 if `GLM_AUTH_TOKEN` is not set or the `claude` binary is missing, 0 otherwise.
 
 **Example output:**
 
@@ -286,7 +287,7 @@ Exits with code 1 if any binary is missing, 0 otherwise.
 Environment variables:
   GLM_BASE_URL: (not set)
   GLM_API_KEY: (not set)
-  GLM_AUTH_TOKEN: (not set)
+  GLM_AUTH_TOKEN: zai_***
   GLM_MODELS_URL: (not set)
   API_TIMEOUT_MS: (not set)
   ANTHROPIC_DEFAULT_HAIKU_MODEL: (not set)
@@ -313,16 +314,16 @@ All checks passed.
 | `GLM_API_KEY` | `launch claude`, `shell` | API key |
 | `GLM_AUTH_TOKEN` | `launch claude`, `shell`, `bench`, `models --remote` | Z.AI auth token (required) |
 | `GLM_MODELS_URL` | `models --remote` | PaaS models endpoint |
-| `API_TIMEOUT_MS` | `launch claude`, `shell` | Request timeout in milliseconds |
+| `API_TIMEOUT_MS` | `launch claude`, `shell` | Request timeout in milliseconds (positive integer) |
 | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `launch claude`, `shell` | Model for Haiku-tier requests |
 | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `launch claude`, `shell` | Model for Sonnet-tier requests |
 | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `launch claude`, `shell` | Model for Opus-tier requests |
 | `ANTHROPIC_DEFAULT_FABLE_MODEL` | `launch claude`, `shell` | Model for Fable-tier requests |
 | `CLAUDE_CODE_SUBAGENT_MODEL` | `launch claude`, `shell` | Model used for spawned subagents |
-| `CLAUDE_CODE_EFFORT_LEVEL` | `launch claude`, `shell` | Effort level for the agent loop |
-| `CLAUDE_CODE_ATTRIBUTION_HEADER` | `launch claude`, `shell` | Attribution header toggle (`0` disables it) |
-| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `launch claude`, `shell` | Auto-compact context window in tokens |
-| `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | `launch claude`, `shell` | Maximum context token budget |
+| `CLAUDE_CODE_EFFORT_LEVEL` | `launch claude`, `shell` | Validated effort level for the agent loop |
+| `CLAUDE_CODE_ATTRIBUTION_HEADER` | `launch claude`, `shell` | Attribution header toggle (`0` or `1`) |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `launch claude`, `shell` | `auto`, empty, or a positive token count |
+| `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | `launch claude`, `shell` | `auto`, empty, or a positive token count |
 
 ## How it works
 
@@ -338,6 +339,14 @@ Z.AI exposes an Anthropic-compatible endpoint at `https://api.z.ai/api/anthropic
 
 Common tasks are wrapped in a [`justfile`](https://github.com/casey/just). Run `just` with no arguments to list them.
 
+Before committing, run the same core checks used by CI:
+
+```bash
+uv run pytest
+uv tool run prek run --all-files
+uv build
+```
+
 | Recipe | Description |
 |--------|-------------|
 | `just bootstrap` | Upgrade `pip`/`uv`, then `uv sync` |
@@ -351,6 +360,6 @@ Common tasks are wrapped in a [`justfile`](https://github.com/casey/just). Run `
 | `just fmt` | Format the `justfile` itself |
 | `just demo` | Smoke-test the CLI by listing models |
 
-Versioning follows [CalVer](https://calver.org/) (`YYYY.MM.INC1`), and lint hooks (ruff, pyupgrade, validate-pyproject) are configured in `.pre-commit-config.yaml` and run with `prek`.
+Versioning follows [CalVer](https://calver.org/) (`YYYY.MM.INC1`), and lint hooks (ruff, pyupgrade, validate-pyproject) are configured in `.pre-commit-config.yaml` and run with `prek`. CI runs the tests, lint checks, and package build; the release workflow reruns the tests before publishing.
 
 Releases are automated. Run `just release` to bump the CalVer version, relock, and push the tag in one step. Pushing a `YYYY.MM.INC1` tag triggers the GitHub Actions release workflow, which builds and publishes to PyPI via [trusted publishing](https://docs.pypi.org/trusted-publishers/) (OIDC, no API token). A plain `git push` never publishes — only the tag does.

@@ -15,11 +15,14 @@ uv run src/main.py --help
 # Show available providers
 uv run src/main.py launch --help
 
-# Launch claude (requires GLM_BASE_URL env var)
+# Launch claude (requires GLM_AUTH_TOKEN; GLM_BASE_URL has a default)
 uv run src/main.py launch claude
 
 # Launch claude with a specific model
 uv run src/main.py launch claude --model "some-model"
+
+# Claude options can omit the provider name
+uv run src/main.py --model "some-model" --dry-run
 
 # codex is disabled (Z.ai has no OpenAI Responses API endpoint); it prints a note and exits
 
@@ -37,13 +40,18 @@ uv run src/main.py models --remote
 
 # Bootstrap the current shell with GLM env vars (so a plain `claude` uses Z.ai)
 eval "$(uv run src/main.py shell)"
+
+# Run tests, lint checks, and a package build
+uv run pytest
+uv tool run prek run --all-files
+uv build
 ```
 
 ## Architecture
 
-Single-module project with entry point at `src/main.py` (the installed `glm-launch` console script calls `cli()`, which defaults to the `claude` provider when no command is given). Uses Typer with a two-level command structure: `glm launch <provider>`. Providers are also registered at the top level so `glm-launch <provider>` works without the `launch` prefix. Each provider gets its own `@launch_app.command()` with provider-specific setup logic:
+Single-module project with entry point at `src/main.py` (the installed `glm-launch` console script calls `cli()`, which defaults to the `claude` provider when no command is given and forwards bare provider options such as `--model` to Claude). Uses Typer with a two-level command structure: `glm launch <provider>`. Providers are also registered at the top level so `glm-launch <provider>` works without the `launch` prefix. Each provider gets its own `@launch_app.command()` with provider-specific setup logic:
 
-- **claude** — Sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_DEFAULT_*_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`, `CLAUDE_CODE_ATTRIBUTION_HEADER`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` env vars from GLM settings, passes `--model` flag. Falls back to `~/.claude/local/claude` if not on PATH.
+- **claude** — Validates constrained settings, sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_DEFAULT_*_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`, `CLAUDE_CODE_ATTRIBUTION_HEADER`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` env vars from GLM settings, then passes the `--model` flag. Falls back to `~/.claude/local/claude` if not on PATH; `--dry-run` works without an installed binary.
 - **codex** — Disabled. Z.ai exposes only Anthropic Messages and OpenAI Chat Completions, but current codex requires the OpenAI Responses API (no `/responses` endpoint → 404). The command prints an explanation and exits 1.
 
 All providers exec the underlying binary via `os.execvpe()` for full stdio passthrough.
