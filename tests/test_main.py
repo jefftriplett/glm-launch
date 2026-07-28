@@ -135,3 +135,17 @@ def test_cli_preserves_top_level_options(monkeypatch) -> None:
     main.cli()
 
     assert sys.argv == ["glm-launch", "--version"]
+
+
+def test_claude_dry_run_does_not_require_binary(monkeypatch) -> None:
+    monkeypatch.setattr(main.shutil, "which", lambda name: None)
+    monkeypatch.setattr(main.os.path, "isfile", lambda path: False)
+
+    result = runner.invoke(
+        main.app,
+        ["claude", "--auth-token", "secret-token", "--dry-run"],
+    )
+
+    assert result.exit_code == 0
+    assert "binary: claude" in result.stdout
+    assert "ANTHROPIC_AUTH_TOKEN=secr***" in result.stdout

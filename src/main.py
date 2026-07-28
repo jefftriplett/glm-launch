@@ -164,8 +164,10 @@ def _print_dry_run(
 # ---------------------------------------------------------------------------
 
 
-def _find_binary(name: str, fallback_path: str | None = None) -> str:
-    """Locate *name* on PATH, optionally falling back to *fallback_path*."""
+def _find_binary(
+    name: str, fallback_path: str | None = None, *, required: bool = True
+) -> str:
+    """Locate *name*, optionally returning its unresolved name for a dry run."""
     found = shutil.which(name)
     if found:
         return found
@@ -173,6 +175,8 @@ def _find_binary(name: str, fallback_path: str | None = None) -> str:
         expanded = os.path.expanduser(fallback_path)
         if os.path.isfile(expanded) and os.access(expanded, os.X_OK):
             return expanded
+    if not required:
+        return name
     install_hint = "Install it or ensure it is on your PATH."
     raise SystemExit(f"{name!r} not found. {install_hint}")
 
@@ -346,7 +350,7 @@ def launch_claude(
 ) -> None:
     """Launch claude with GLM environment settings."""
     _warn_unknown_model(model)
-    binary = _find_binary("claude", "~/.claude/local/claude")
+    binary = _find_binary("claude", "~/.claude/local/claude", required=not dry_run)
 
     glm_env = _build_claude_env(
         model=model,

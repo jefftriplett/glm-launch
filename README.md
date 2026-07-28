@@ -177,6 +177,8 @@ uv run glm-launch launch claude --dry-run
 GLM_AUTH_TOKEN="my-token" uv run glm-launch launch claude
 ```
 
+`--dry-run` does not require the `claude` binary to be installed.
+
 Run `uv run glm-launch models` to see all valid model names (or `--remote` for the live list).
 
 If `claude` is not on your PATH, the tool falls back to `~/.claude/local/claude`.
