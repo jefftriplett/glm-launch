@@ -94,6 +94,16 @@ def _context_window_for(model: str) -> int:
     return DEFAULT_CONTEXT_WINDOW
 
 
+def _warn_unknown_model(model: str) -> None:
+    """Warn when a model ID is not in the registry (Z.ai will 400 on typos)."""
+    if model and model not in {model_id for model_id, _, _ in ZAI_MODELS}:
+        typer.echo(
+            f"warning: {model!r} is not a known Z.ai model (run `glm-launch models` "
+            "to list them); launching anyway",
+            err=True,
+        )
+
+
 def _fmt_window(window: int) -> str:
     """Format a token count compactly (1000000 -> 1M, 200000 -> 200K)."""
     if window >= 1_000_000 and window % 1_000_000 == 0:
@@ -335,6 +345,7 @@ def launch_claude(
     ),
 ) -> None:
     """Launch claude with GLM environment settings."""
+    _warn_unknown_model(model)
     binary = _find_binary("claude", "~/.claude/local/claude")
 
     glm_env = _build_claude_env(
