@@ -185,6 +185,41 @@ def _find_binary(
 # Claude / GLM environment
 # ---------------------------------------------------------------------------
 
+
+def _validate_positive_integer(value: str) -> str:
+    """Validate a positive integer represented as a string."""
+    try:
+        parsed = int(value)
+    except ValueError:
+        raise typer.BadParameter("must be a positive integer") from None
+    if parsed <= 0:
+        raise typer.BadParameter("must be a positive integer")
+    return value
+
+
+def _validate_context_window(value: str) -> str:
+    """Validate an auto, empty, or positive context-window value."""
+    if value in {"", "auto"}:
+        return value
+    return _validate_positive_integer(value)
+
+
+def _validate_effort_level(value: str) -> str:
+    """Validate an effort level understood by Claude Code."""
+    allowed = {"low", "medium", "high", "xhigh", "max", "ultracode"}
+    if value not in allowed:
+        choices = ", ".join(sorted(allowed))
+        raise typer.BadParameter(f"must be one of: {choices}")
+    return value
+
+
+def _validate_toggle(value: str) -> str:
+    """Validate a string toggle represented as 0 or 1."""
+    if value not in {"0", "1"}:
+        raise typer.BadParameter("must be 0 or 1")
+    return value
+
+
 # Shared option declarations for `launch claude` and `shell`, so each
 # flag/envvar/default/help lives in exactly one place.
 MODEL_OPTION = typer.Option(
@@ -208,6 +243,7 @@ API_TIMEOUT_MS_OPTION = typer.Option(
     "3000000",
     "--api-timeout-ms",
     envvar="API_TIMEOUT_MS",
+    callback=_validate_positive_integer,
     help="API request timeout in milliseconds",
 )
 DEFAULT_HAIKU_MODEL_OPTION = typer.Option(
@@ -247,6 +283,7 @@ EFFORT_LEVEL_OPTION = typer.Option(
     "max",
     "--effort-level",
     envvar="CLAUDE_CODE_EFFORT_LEVEL",
+    callback=_validate_effort_level,
     help="Effort level; GLM-5.2 only distinguishes high (faster) vs max (deeper) — "
     "low/medium/high map to high, xhigh/max map to max",
 )
@@ -254,12 +291,14 @@ ATTRIBUTION_HEADER_OPTION = typer.Option(
     "0",
     "--attribution-header",
     envvar="CLAUDE_CODE_ATTRIBUTION_HEADER",
+    callback=_validate_toggle,
     help="Attribution header toggle (0 disables it)",
 )
 AUTO_COMPACT_WINDOW_OPTION = typer.Option(
     "auto",
     "--auto-compact-window",
     envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW",
+    callback=_validate_context_window,
     help="Auto-compact context window (token count); "
     "'auto' sizes it to the model's context window, empty to leave unset",
 )
@@ -267,6 +306,7 @@ MAX_CONTEXT_TOKENS_OPTION = typer.Option(
     "auto",
     "--max-context-tokens",
     envvar="CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+    callback=_validate_context_window,
     help="Maximum context token budget; "
     "'auto' sizes it to the model's context window, empty to leave unset",
 )
@@ -477,14 +517,22 @@ def _fetch_remote_models(models_url: str, auth_token: str, timeout: float) -> li
     import urllib.error
     import urllib.request
 
-    req = urllib.request.Request(
-        models_url,
-        headers={"Authorization": f"Bearer {auth_token}"},
-        method="GET",
-    )
+    try:
+        req = urllib.request.Request(
+            models_url,
+            headers={"Authorization": f"Bearer {auth_token}"},
+            method="GET",
+        )
+    except ValueError as e:
+        raise SystemExit(f"Failed to fetch models: invalid URL ({e})") from None
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            payload = json.load(resp)
+            try:
+                payload = json.load(resp)
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                raise SystemExit(
+                    f"Failed to fetch models: invalid JSON response ({e})"
+                ) from None
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
         msg = f"Failed to fetch models ({e.code})"
@@ -493,9 +541,21 @@ def _fetch_remote_models(models_url: str, auth_token: str, timeout: float) -> li
         raise SystemExit(msg)
     except urllib.error.URLError as e:
         raise SystemExit(f"Failed to fetch models: {e.reason}")
+    except TimeoutError:
+        raise SystemExit(
+            f"Failed to fetch models: timed out after {timeout:g}s"
+        ) from None
 
     data = payload.get("data", payload) if isinstance(payload, dict) else payload
-    ids = [m.get("id") for m in data if isinstance(m, dict) and m.get("id")]
+    if not isinstance(data, list):
+        raise SystemExit("Failed to fetch models: unexpected response format")
+    ids = [
+        model_id
+        for model in data
+        if isinstance(model, dict)
+        and isinstance(model_id := model.get("id"), str)
+        and model_id
+    ]
     return sorted(ids)
 
 
@@ -518,7 +578,9 @@ def models(
         envvar="GLM_AUTH_TOKEN",
         help="Auth token (required with --remote)",
     ),
-    timeout: float = typer.Option(30.0, "--timeout", help="Request timeout in seconds"),
+    timeout: float = typer.Option(
+        30.0, "--timeout", min=0.001, help="Request timeout in seconds"
+    ),
 ) -> None:
     """List Z.ai GLM models (built-in list, or --remote for the live API list)."""
     if remote:
@@ -564,7 +626,9 @@ def bench(
         envvar="GLM_AUTH_TOKEN",
         help="Auth token for the endpoint",
     ),
-    timeout: float = typer.Option(30.0, "--timeout", help="Request timeout in seconds"),
+    timeout: float = typer.Option(
+        30.0, "--timeout", min=0.001, help="Request timeout in seconds"
+    ),
 ) -> None:
     """Time a single /v1/messages round-trip against the configured endpoint."""
     import time
@@ -580,16 +644,19 @@ def bench(
         }
     ).encode()
 
-    req = urllib.request.Request(
-        url,
-        data=payload,
-        headers={
-            "x-api-key": auth_token,
-            "content-type": "application/json",
-            "anthropic-version": "2023-06-01",
-        },
-        method="POST",
-    )
+    try:
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={
+                "x-api-key": auth_token,
+                "content-type": "application/json",
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST",
+        )
+    except ValueError as e:
+        raise SystemExit(f"Invalid API URL: {e}") from None
 
     print(f"  {model} via {base_url}")
     start = time.monotonic()
@@ -608,6 +675,10 @@ def bench(
         elapsed_ms = int((time.monotonic() - start) * 1000)
         print(f"  FAIL ({e.reason}) in {elapsed_ms}ms")
         raise typer.Exit(code=1)
+    except TimeoutError:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        print(f"  FAIL (timed out after {timeout:g}s) in {elapsed_ms}ms")
+        raise typer.Exit(code=1) from None
 
 
 # ---------------------------------------------------------------------------

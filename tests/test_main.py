@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import io
 import sys
+import urllib.request
 
+import pytest
 from typer.testing import CliRunner
 
 import main
@@ -149,3 +152,67 @@ def test_claude_dry_run_does_not_require_binary(monkeypatch) -> None:
     assert result.exit_code == 0
     assert "binary: claude" in result.stdout
     assert "ANTHROPIC_AUTH_TOKEN=secr***" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("option", "value", "message"),
+    [
+        ("--api-timeout-ms", "later", "must be a positive integer"),
+        ("--api-timeout-ms", "0", "must be a positive integer"),
+        ("--auto-compact-window", "-1", "must be a positive integer"),
+        ("--max-context-tokens", "lots", "must be a positive integer"),
+        ("--effort-level", "extreme", "must be one of"),
+        ("--attribution-header", "yes", "must be 0 or 1"),
+    ],
+)
+def test_claude_rejects_invalid_settings(option: str, value: str, message: str) -> None:
+    result = runner.invoke(
+        main.app,
+        ["claude", "--auth-token", "secret-token", option, value, "--dry-run"],
+        terminal_width=200,
+    )
+
+    assert result.exit_code == 2
+    normalized_output = " ".join(result.output.replace("│", " ").split())
+    assert message in normalized_output
+
+
+def test_remote_models_reports_invalid_json(monkeypatch) -> None:
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda request, timeout: io.BytesIO(b"not-json"),
+    )
+
+    with pytest.raises(SystemExit, match="invalid JSON response"):
+        main._fetch_remote_models("https://example.test/models", "secret-token", 1.0)
+
+
+def test_remote_models_reports_timeout(monkeypatch) -> None:
+    def raise_timeout(request, timeout):
+        raise TimeoutError
+
+    monkeypatch.setattr(urllib.request, "urlopen", raise_timeout)
+
+    with pytest.raises(SystemExit, match="timed out after 1s"):
+        main._fetch_remote_models("https://example.test/models", "secret-token", 1.0)
+
+
+def test_remote_models_reports_invalid_url() -> None:
+    with pytest.raises(SystemExit, match="invalid URL"):
+        main._fetch_remote_models("not-a-url", "secret-token", 1.0)
+
+
+def test_bench_reports_timeout(monkeypatch) -> None:
+    def raise_timeout(request, timeout):
+        raise TimeoutError
+
+    monkeypatch.setattr(urllib.request, "urlopen", raise_timeout)
+
+    result = runner.invoke(
+        main.app,
+        ["bench", "--auth-token", "secret-token", "--timeout", "0.5"],
+    )
+
+    assert result.exit_code == 1
+    assert "FAIL (timed out after 0.5s)" in result.stdout
