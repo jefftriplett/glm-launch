@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 import sys
 import urllib.request
 
@@ -11,6 +12,7 @@ import main
 
 
 runner = CliRunner()
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 def _claude_env(**overrides: str) -> dict[str, str]:
@@ -173,7 +175,8 @@ def test_claude_rejects_invalid_settings(option: str, value: str, message: str) 
     )
 
     assert result.exit_code == 2
-    normalized_output = " ".join(result.output.replace("│", " ").split())
+    plain_output = ANSI_ESCAPE_RE.sub("", result.output)
+    normalized_output = " ".join(plain_output.replace("│", " ").split())
     assert message in normalized_output
 
 
