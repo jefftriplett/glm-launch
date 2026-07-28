@@ -131,6 +131,14 @@ So `--effort-level` is effectively a two-position switch: `high` (faster) or
 default here. You can also switch mid-session with the `/effort` command in
 Claude Code.
 
+> [!TIP]
+> The GLM coding models are **text-only** — pasting images into Claude Code
+> won't work through Z.AI. Coding Plan subscribers get image understanding via
+> Z.AI's Vision MCP server (backed by `glm-4.6v`) instead; see
+> [#3](https://github.com/jefftriplett/glm-launch/issues/3). Also note that
+> Team Plan API keys are separate from regular Z.AI keys — only a Team key
+> draws Team quota, so a mismatched key can look like an auth failure.
+
 **Examples:**
 
 ```bash
@@ -214,11 +222,11 @@ uv run glm-launch models --remote
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
 | `--remote` / `-r` | — | `false` | Fetch the live list from the Z.AI API |
-| `--models-url` | `GLM_MODELS_URL` | `https://api.z.ai/api/paas/v4/models` | PaaS models endpoint (used with `--remote`) |
+| `--models-url` | `GLM_MODELS_URL` | `https://api.z.ai/api/coding/paas/v4/models` | PaaS models endpoint (used with `--remote`) |
 | `--auth-token` | `GLM_AUTH_TOKEN` | — | Auth token (required with `--remote`) |
 | `--timeout` | — | `30.0` | Request timeout in seconds |
 
-The live endpoint is the OpenAI-compatible PaaS base (`/api/paas/v4/models`) and uses `Authorization: Bearer <token>` — distinct from the Anthropic-style chat base (`/api/anthropic`) used by `launch claude` and `bench`.
+The live endpoint is the OpenAI-compatible coding PaaS base (`/api/coding/paas/v4/models`) and uses `Authorization: Bearer <token>` — distinct from the Anthropic-style chat base (`/api/anthropic`) used by `launch claude` and `bench`. Coding Plan keys only work through the coding endpoints; if you have a general Z.AI API key instead, point `--models-url` at `https://api.z.ai/api/paas/v4/models`.
 
 ### `bench`
 
@@ -246,6 +254,14 @@ Sends a minimal 32-token request and prints the round-trip time. Exits non-zero 
   OK (200) in 412ms
 ```
 
+### `usage`
+
+Open the Z.AI usage/quota dashboard in your browser. Coding Plan quotas are tracked in 5-hour and weekly windows, and there is no API for quota data — the dashboard is the only place to see it.
+
+```bash
+uv run glm-launch usage
+```
+
 ### `doctor`
 
 Check your environment for correct setup. Reports on environment variables, binary availability, and config files.
@@ -257,7 +273,7 @@ uv run glm-launch doctor
 **Checks performed:**
 
 - **Environment variables** — Whether the GLM, Anthropic default-model, and Claude Code env vars used by the launch commands are set. Secrets are masked in output.
-- **Binaries** — Whether `claude` is found on PATH (with fallback to `~/.claude/local/claude`).
+- **Binaries** — Whether `claude` is found on PATH (with fallback to `~/.claude/local/claude`), including its version — the default `glm-5.2[1m]` model needs a recent Claude Code, so if claude reports the `[1m]` model doesn't exist, upgrade.
 
 Exits with code 1 if any binary is missing, 0 otherwise.
 

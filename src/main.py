@@ -72,8 +72,10 @@ ZAI_MODELS: list[tuple[str, int, str]] = [
     ("glm-5.1", 200_000, "Long-horizon agentic flagship"),
     ("glm-5", 200_000, "GLM-5 flagship"),
     ("glm-5-turbo", 200_000, "Speed-optimized GLM-5 variant"),
+    ("glm-5v-turbo", 200_000, "Vision-capable GLM-5-Turbo variant"),
     ("glm-4.7", 200_000, "Balanced cost/performance coding model"),
     ("glm-4.6", 200_000, "Strong coding model"),
+    ("glm-4.6v", 128_000, "Vision model (backs Z.ai's Vision MCP server)"),
     ("glm-4.5", 128_000, "Previous-gen general model"),
     ("glm-4.5-air", 128_000, "Lightweight, low-cost (good for subagents/haiku tier)"),
 ]
@@ -488,7 +490,9 @@ def models(
         False, "--remote", "-r", help="Fetch the live list from the Z.ai API"
     ),
     models_url: str = typer.Option(
-        "https://api.z.ai/api/paas/v4/models",
+        # The coding PaaS base -- Coding Plan keys only work through the
+        # coding endpoints, not the general /api/paas/v4 base.
+        "https://api.z.ai/api/coding/paas/v4/models",
         "--models-url",
         envvar="GLM_MODELS_URL",
         help="PaaS models endpoint (used with --remote)",
@@ -592,6 +596,22 @@ def bench(
 
 
 # ---------------------------------------------------------------------------
+# usage
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def usage() -> None:
+    """Open the Z.ai usage/quota dashboard (no API exists for quota data)."""
+    import webbrowser
+
+    url = "https://z.ai/manage-apikey/subscription"
+    print(f"Opening {url}")
+    print("Coding Plan quotas are tracked in 5-hour and weekly windows.")
+    webbrowser.open(url)
+
+
+# ---------------------------------------------------------------------------
 # doctor
 # ---------------------------------------------------------------------------
 
@@ -617,6 +637,20 @@ _BINARIES = [
 ]
 
 
+def _binary_version(path: str) -> str | None:
+    """Return `<binary> --version` output, or None if it can't be determined."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            [path, "--version"], capture_output=True, text=True, timeout=10
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    output = (result.stdout or result.stderr).strip()
+    return output or None
+
+
 @app.command()
 def doctor() -> None:
     """Check environment variables and binary availability."""
@@ -635,18 +669,23 @@ def doctor() -> None:
     print("Binaries:")
     for name, fallback in _BINARIES:
         found = shutil.which(name)
-        if found:
-            print(f"  {name}: {found}")
-        elif fallback:
+        if not found and fallback:
             expanded = os.path.expanduser(fallback)
             if os.path.isfile(expanded) and os.access(expanded, os.X_OK):
-                print(f"  {name}: {expanded} (fallback)")
-            else:
-                print(f"  {name}: NOT FOUND")
-                ok = False
+                found = expanded
+        if found:
+            version = _binary_version(found)
+            suffix = f" ({version})" if version else ""
+            print(f"  {name}: {found}{suffix}")
         else:
             print(f"  {name}: NOT FOUND")
             ok = False
+
+    print()
+    print(
+        "Note: the default model glm-5.2[1m] needs a recent Claude Code -- if "
+        "claude reports the [1m] model does not exist, upgrade Claude Code."
+    )
 
     print()
     if ok:
