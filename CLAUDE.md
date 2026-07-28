@@ -43,7 +43,7 @@ eval "$(uv run src/main.py shell)"
 
 Single-module project with entry point at `src/main.py` (the installed `glm-launch` console script calls `cli()`, which defaults to the `claude` provider when no command is given). Uses Typer with a two-level command structure: `glm launch <provider>`. Providers are also registered at the top level so `glm-launch <provider>` works without the `launch` prefix. Each provider gets its own `@launch_app.command()` with provider-specific setup logic:
 
-- **claude** — Sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_DEFAULT_*_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`, `CLAUDE_CODE_ATTRIBUTION_HEADER`, and `CLAUDE_CODE_AUTO_COMPACT_WINDOW` env vars from GLM settings, passes `--model` flag. Falls back to `~/.claude/local/claude` if not on PATH.
+- **claude** — Sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_DEFAULT_*_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`, `CLAUDE_CODE_ATTRIBUTION_HEADER`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` env vars from GLM settings, passes `--model` flag. Falls back to `~/.claude/local/claude` if not on PATH.
 - **codex** — Disabled. Z.ai exposes only Anthropic Messages and OpenAI Chat Completions, but current codex requires the OpenAI Responses API (no `/responses` endpoint → 404). The command prints an explanation and exits 1.
 
 All providers exec the underlying binary via `os.execvpe()` for full stdio passthrough.

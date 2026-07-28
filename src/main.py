@@ -186,6 +186,12 @@ DEFAULT_OPUS_MODEL_OPTION = typer.Option(
     envvar="ANTHROPIC_DEFAULT_OPUS_MODEL",
     help="Default model for Opus-tier requests",
 )
+DEFAULT_FABLE_MODEL_OPTION = typer.Option(
+    "glm-5.2",
+    "--default-fable-model",
+    envvar="ANTHROPIC_DEFAULT_FABLE_MODEL",
+    help="Default model for Fable-tier requests",
+)
 SUBAGENT_MODEL_OPTION = typer.Option(
     "glm-4.5-air",
     "--subagent-model",
@@ -210,6 +216,12 @@ AUTO_COMPACT_WINDOW_OPTION = typer.Option(
     envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW",
     help="Auto-compact context window (token count); empty to leave unset",
 )
+MAX_CONTEXT_TOKENS_OPTION = typer.Option(
+    "200000",
+    "--max-context-tokens",
+    envvar="CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+    help="Maximum context token budget; empty to leave unset",
+)
 
 
 def _build_claude_env(
@@ -222,10 +234,12 @@ def _build_claude_env(
     default_haiku_model: str,
     default_sonnet_model: str,
     default_opus_model: str,
+    default_fable_model: str,
     subagent_model: str,
     effort_level: str,
     attribution_header: str = "0",
     auto_compact_window: str = "",
+    max_context_tokens: str = "",
 ) -> dict[str, str]:
     """Build the GLM env vars claude needs to talk to Z.ai."""
     env = {
@@ -235,6 +249,7 @@ def _build_claude_env(
         "ANTHROPIC_DEFAULT_HAIKU_MODEL": default_haiku_model,
         "ANTHROPIC_DEFAULT_SONNET_MODEL": default_sonnet_model,
         "ANTHROPIC_DEFAULT_OPUS_MODEL": default_opus_model,
+        "ANTHROPIC_DEFAULT_FABLE_MODEL": default_fable_model,
         "CLAUDE_CODE_SUBAGENT_MODEL": subagent_model,
         "CLAUDE_CODE_EFFORT_LEVEL": effort_level,
         "CLAUDE_CODE_ATTRIBUTION_HEADER": attribution_header,
@@ -245,6 +260,8 @@ def _build_claude_env(
         env["ANTHROPIC_MODEL"] = model
     if auto_compact_window:
         env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = auto_compact_window
+    if max_context_tokens:
+        env["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] = max_context_tokens
     return env
 
 
@@ -267,10 +284,12 @@ def launch_claude(
     default_haiku_model: str = DEFAULT_HAIKU_MODEL_OPTION,
     default_sonnet_model: str = DEFAULT_SONNET_MODEL_OPTION,
     default_opus_model: str = DEFAULT_OPUS_MODEL_OPTION,
+    default_fable_model: str = DEFAULT_FABLE_MODEL_OPTION,
     subagent_model: str = SUBAGENT_MODEL_OPTION,
     effort_level: str = EFFORT_LEVEL_OPTION,
     attribution_header: str = ATTRIBUTION_HEADER_OPTION,
     auto_compact_window: str = AUTO_COMPACT_WINDOW_OPTION,
+    max_context_tokens: str = MAX_CONTEXT_TOKENS_OPTION,
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
@@ -289,10 +308,12 @@ def launch_claude(
         default_haiku_model=default_haiku_model,
         default_sonnet_model=default_sonnet_model,
         default_opus_model=default_opus_model,
+        default_fable_model=default_fable_model,
         subagent_model=subagent_model,
         effort_level=effort_level,
         attribution_header=attribution_header,
         auto_compact_window=auto_compact_window,
+        max_context_tokens=max_context_tokens,
     )
     env = os.environ.copy()
     if not api_key:
@@ -359,10 +380,12 @@ def shell(
     default_haiku_model: str = DEFAULT_HAIKU_MODEL_OPTION,
     default_sonnet_model: str = DEFAULT_SONNET_MODEL_OPTION,
     default_opus_model: str = DEFAULT_OPUS_MODEL_OPTION,
+    default_fable_model: str = DEFAULT_FABLE_MODEL_OPTION,
     subagent_model: str = SUBAGENT_MODEL_OPTION,
     effort_level: str = EFFORT_LEVEL_OPTION,
     attribution_header: str = ATTRIBUTION_HEADER_OPTION,
     auto_compact_window: str = AUTO_COMPACT_WINDOW_OPTION,
+    max_context_tokens: str = MAX_CONTEXT_TOKENS_OPTION,
 ) -> None:
     """Print `export` lines to bootstrap the current shell for Z.ai.
 
@@ -379,10 +402,12 @@ def shell(
         default_haiku_model=default_haiku_model,
         default_sonnet_model=default_sonnet_model,
         default_opus_model=default_opus_model,
+        default_fable_model=default_fable_model,
         subagent_model=subagent_model,
         effort_level=effort_level,
         attribution_header=attribution_header,
         auto_compact_window=auto_compact_window,
+        max_context_tokens=max_context_tokens,
     )
     for key, value in env.items():
         if value:
@@ -543,10 +568,12 @@ _CLAUDE_ENV_VARS = [
     "ANTHROPIC_DEFAULT_HAIKU_MODEL",
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL",
     "CLAUDE_CODE_SUBAGENT_MODEL",
     "CLAUDE_CODE_EFFORT_LEVEL",
     "CLAUDE_CODE_ATTRIBUTION_HEADER",
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
+    "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
 ]
 
 _BINARIES = [
