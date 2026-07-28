@@ -60,18 +60,43 @@ def launch_main(ctx: typer.Context) -> None:
 # Z.ai model registry
 # ---------------------------------------------------------------------------
 
-# Current Z.ai GLM models (API IDs are lowercase). Kept here so `models` and
-# the help text stay in one place. See https://z.ai/model-api
-ZAI_MODELS: list[tuple[str, str]] = [
-    ("glm-5.2", "Flagship — frontier reasoning, coding, agentic tasks (1M context)"),
-    ("glm-5.1", "Long-horizon agentic flagship (200K context)"),
-    ("glm-5", "GLM-5 flagship"),
-    ("glm-5-turbo", "Speed-optimized GLM-5 variant"),
-    ("glm-4.7", "Balanced cost/performance coding model"),
-    ("glm-4.6", "Strong coding model, 200K context"),
-    ("glm-4.5", "Previous-gen general model"),
-    ("glm-4.5-air", "Lightweight, low-cost (good for subagents/haiku tier)"),
+# Current Z.ai GLM models (API IDs are lowercase). Each entry is
+# (model_id, context_window_tokens, description). The `[1m]` suffix enables
+# the 1M context tier (billed separately); plain glm-5.2 serves the standard
+# window. Kept here so `models`, the auto context defaults, and the help text
+# stay in one place. See https://z.ai/model-api and
+# https://docs.z.ai/devpack/latest-model
+ZAI_MODELS: list[tuple[str, int, str]] = [
+    ("glm-5.2[1m]", 1_000_000, "Flagship with the 1M context tier enabled"),
+    ("glm-5.2", 200_000, "Flagship — frontier reasoning, coding, agentic tasks"),
+    ("glm-5.1", 200_000, "Long-horizon agentic flagship"),
+    ("glm-5", 200_000, "GLM-5 flagship"),
+    ("glm-5-turbo", 200_000, "Speed-optimized GLM-5 variant"),
+    ("glm-4.7", 200_000, "Balanced cost/performance coding model"),
+    ("glm-4.6", 200_000, "Strong coding model"),
+    ("glm-4.5", 128_000, "Previous-gen general model"),
+    ("glm-4.5-air", 128_000, "Lightweight, low-cost (good for subagents/haiku tier)"),
 ]
+
+# Conservative fallback for model IDs not in the registry.
+DEFAULT_CONTEXT_WINDOW = 200_000
+
+
+def _context_window_for(model: str) -> int:
+    """Resolve a model ID to its context window in tokens."""
+    for model_id, window, _ in ZAI_MODELS:
+        if model_id == model:
+            return window
+    if model.endswith("[1m]"):
+        return 1_000_000
+    return DEFAULT_CONTEXT_WINDOW
+
+
+def _fmt_window(window: int) -> str:
+    """Format a token count compactly (1000000 -> 1M, 200000 -> 200K)."""
+    if window >= 1_000_000 and window % 1_000_000 == 0:
+        return f"{window // 1_000_000}M"
+    return f"{window // 1_000}K"
 
 
 # ---------------------------------------------------------------------------
@@ -147,10 +172,11 @@ def _find_binary(name: str, fallback_path: str | None = None) -> str:
 # Shared option declarations for `launch claude` and `shell`, so each
 # flag/envvar/default/help lives in exactly one place.
 MODEL_OPTION = typer.Option(
-    "glm-5.2",
+    "glm-5.2[1m]",
     "--model",
     "-m",
-    help="Model name (ANTHROPIC_MODEL, passed to claude --model)",
+    help="Model name (ANTHROPIC_MODEL, passed to claude --model); "
+    "the [1m] suffix enables the 1M context tier",
 )
 BASE_URL_OPTION = typer.Option(
     "https://api.z.ai/api/anthropic",
@@ -175,19 +201,19 @@ DEFAULT_HAIKU_MODEL_OPTION = typer.Option(
     help="Default model for Haiku-tier requests",
 )
 DEFAULT_SONNET_MODEL_OPTION = typer.Option(
-    "glm-5.2",
+    "glm-5.2[1m]",
     "--default-sonnet-model",
     envvar="ANTHROPIC_DEFAULT_SONNET_MODEL",
     help="Default model for Sonnet-tier requests",
 )
 DEFAULT_OPUS_MODEL_OPTION = typer.Option(
-    "glm-5.2",
+    "glm-5.2[1m]",
     "--default-opus-model",
     envvar="ANTHROPIC_DEFAULT_OPUS_MODEL",
     help="Default model for Opus-tier requests",
 )
 DEFAULT_FABLE_MODEL_OPTION = typer.Option(
-    "glm-5.2",
+    "glm-5.2[1m]",
     "--default-fable-model",
     envvar="ANTHROPIC_DEFAULT_FABLE_MODEL",
     help="Default model for Fable-tier requests",
@@ -198,11 +224,15 @@ SUBAGENT_MODEL_OPTION = typer.Option(
     envvar="CLAUDE_CODE_SUBAGENT_MODEL",
     help="Model used for spawned subagents",
 )
+# GLM-5.2 collapses Claude Code's effort ladder into two effective tiers:
+# low/medium/high -> high, xhigh/max/ultracode -> max. Z.ai recommends max
+# for coding. See https://docs.z.ai/devpack/latest-model
 EFFORT_LEVEL_OPTION = typer.Option(
     "max",
     "--effort-level",
     envvar="CLAUDE_CODE_EFFORT_LEVEL",
-    help="Effort level (e.g. max)",
+    help="Effort level; GLM-5.2 only distinguishes high (faster) vs max (deeper) — "
+    "low/medium/high map to high, xhigh/max map to max",
 )
 ATTRIBUTION_HEADER_OPTION = typer.Option(
     "0",
@@ -211,16 +241,18 @@ ATTRIBUTION_HEADER_OPTION = typer.Option(
     help="Attribution header toggle (0 disables it)",
 )
 AUTO_COMPACT_WINDOW_OPTION = typer.Option(
-    "1000000",
+    "auto",
     "--auto-compact-window",
     envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW",
-    help="Auto-compact context window (token count); empty to leave unset",
+    help="Auto-compact context window (token count); "
+    "'auto' sizes it to the model's context window, empty to leave unset",
 )
 MAX_CONTEXT_TOKENS_OPTION = typer.Option(
-    "1000000",
+    "auto",
     "--max-context-tokens",
     envvar="CLAUDE_CODE_MAX_CONTEXT_TOKENS",
-    help="Maximum context token budget; empty to leave unset",
+    help="Maximum context token budget; "
+    "'auto' sizes it to the model's context window, empty to leave unset",
 )
 
 
@@ -242,6 +274,10 @@ def _build_claude_env(
     max_context_tokens: str = "",
 ) -> dict[str, str]:
     """Build the GLM env vars claude needs to talk to Z.ai."""
+    if auto_compact_window == "auto":
+        auto_compact_window = str(_context_window_for(model))
+    if max_context_tokens == "auto":
+        max_context_tokens = str(_context_window_for(model))
     env = {
         "ANTHROPIC_BASE_URL": base_url,
         "ANTHROPIC_AUTH_TOKEN": auth_token,
@@ -471,7 +507,7 @@ def models(
             raise SystemExit(
                 "--remote requires an auth token (--auth-token or GLM_AUTH_TOKEN)."
             )
-        known = dict(ZAI_MODELS)
+        known = {model_id: desc for model_id, _, desc in ZAI_MODELS}
         ids = _fetch_remote_models(models_url, auth_token, timeout)
         if not ids:
             print(f"No models returned from {models_url}")
@@ -484,9 +520,9 @@ def models(
         return
 
     print("Z.ai GLM models (use the ID in --model):")
-    width = max(len(model_id) for model_id, _ in ZAI_MODELS)
-    for model_id, desc in ZAI_MODELS:
-        print(f"  {model_id.ljust(width)}  {desc}")
+    width = max(len(model_id) for model_id, _, _ in ZAI_MODELS)
+    for model_id, window, desc in ZAI_MODELS:
+        print(f"  {model_id.ljust(width)}  {_fmt_window(window).rjust(4)}  {desc}")
 
 
 # ---------------------------------------------------------------------------
