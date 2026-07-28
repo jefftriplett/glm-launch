@@ -107,6 +107,12 @@ The following env vars are set before exec'ing `claude`:
 - `CLAUDE_CODE_AUTO_COMPACT_WINDOW` — from `--auto-compact-window` (only when non-empty)
 - `CLAUDE_CODE_MAX_CONTEXT_TOKENS` — from `--max-context-tokens` (only when non-empty)
 
+> [!NOTE]
+> The `1000000` context defaults are sized for `glm-5.2`, which has a 1M-token
+> context window. Older models (`glm-5.1`, `glm-4.7`, `glm-4.6`, etc.) top out at
+> 200K — when using one of those, pass `--max-context-tokens 200000
+> --auto-compact-window 200000` (or set the matching env vars).
+
 **Examples:**
 
 ```bash
