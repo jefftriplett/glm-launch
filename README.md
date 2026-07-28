@@ -87,8 +87,8 @@ uv run glm-launch launch claude
 | `--subagent-model` | `CLAUDE_CODE_SUBAGENT_MODEL` | `glm-4.5-air` | Model used for spawned subagents |
 | `--effort-level` | `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort level for the agent loop |
 | `--attribution-header` | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `0` | Attribution header toggle (`0` disables it) |
-| `--auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `200000` | Auto-compact context window in tokens (empty to leave unset) |
-| `--max-context-tokens` | `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | `200000` | Maximum context token budget (empty to leave unset) |
+| `--auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `1000000` | Auto-compact context window in tokens (empty to leave unset) |
+| `--max-context-tokens` | `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | `1000000` | Maximum context token budget (empty to leave unset) |
 | `--dry-run` | — | `false` | Print the resolved command and masked GLM environment without launching |
 
 The following env vars are set before exec'ing `claude`:

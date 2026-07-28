@@ -63,7 +63,7 @@ def launch_main(ctx: typer.Context) -> None:
 # Current Z.ai GLM models (API IDs are lowercase). Kept here so `models` and
 # the help text stay in one place. See https://z.ai/model-api
 ZAI_MODELS: list[tuple[str, str]] = [
-    ("glm-5.2", "Flagship — frontier reasoning, coding, and agentic tasks"),
+    ("glm-5.2", "Flagship — frontier reasoning, coding, agentic tasks (1M context)"),
     ("glm-5.1", "Long-horizon agentic flagship (200K context)"),
     ("glm-5", "GLM-5 flagship"),
     ("glm-5-turbo", "Speed-optimized GLM-5 variant"),
@@ -211,13 +211,13 @@ ATTRIBUTION_HEADER_OPTION = typer.Option(
     help="Attribution header toggle (0 disables it)",
 )
 AUTO_COMPACT_WINDOW_OPTION = typer.Option(
-    "200000",
+    "1000000",
     "--auto-compact-window",
     envvar="CLAUDE_CODE_AUTO_COMPACT_WINDOW",
     help="Auto-compact context window (token count); empty to leave unset",
 )
 MAX_CONTEXT_TOKENS_OPTION = typer.Option(
-    "200000",
+    "1000000",
     "--max-context-tokens",
     envvar="CLAUDE_CODE_MAX_CONTEXT_TOKENS",
     help="Maximum context token budget; empty to leave unset",
