@@ -6,6 +6,9 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = ["typer"]
 
+[dependency-groups]
+dev = ["pytest"]
+
 [project.urls]
 Homepage = "https://github.com/jefftriplett/glm-launch"
 Repository = "https://github.com/jefftriplett/glm-launch"
