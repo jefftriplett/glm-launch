@@ -729,8 +729,16 @@ def cli() -> None:
     """Run the app, defaulting to the `claude` provider when no command is given."""
     import sys
 
+    top_level_options = {
+        "--help",
+        "--install-completion",
+        "--show-completion",
+        "--version",
+    }
     if len(sys.argv) == 1:
         sys.argv.append("claude")
+    elif sys.argv[1].startswith("-") and sys.argv[1] not in top_level_options:
+        sys.argv.insert(1, "claude")
     app()
 
 

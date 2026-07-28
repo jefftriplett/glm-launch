@@ -17,6 +17,7 @@ uv run glm-launch              # bare command defaults to `claude`
 uv run glm-launch claude       # same thing, explicit
 
 # Pick a different model
+uv run glm-launch --model glm-5.1               # bare options also go to `claude`
 uv run glm-launch claude --model glm-5.1        # long-horizon flagship
 uv run glm-launch claude --model glm-5-turbo    # fast
 uv run glm-launch claude --model glm-4.5-air    # cheap

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 from typer.testing import CliRunner
 
 import main
@@ -100,3 +102,36 @@ def test_doctor_passes_with_auth_token_and_claude(monkeypatch) -> None:
     assert result.exit_code == 0
     assert "GLM_AUTH_TOKEN: secr***" in result.stdout
     assert "All checks passed." in result.stdout
+
+
+def test_cli_defaults_to_claude_when_no_arguments(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["glm-launch"])
+    monkeypatch.setattr(main, "app", lambda: None)
+
+    main.cli()
+
+    assert sys.argv == ["glm-launch", "claude"]
+
+
+def test_cli_forwards_bare_options_to_claude(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["glm-launch", "--model", "glm-5.1", "--dry-run"])
+    monkeypatch.setattr(main, "app", lambda: None)
+
+    main.cli()
+
+    assert sys.argv == [
+        "glm-launch",
+        "claude",
+        "--model",
+        "glm-5.1",
+        "--dry-run",
+    ]
+
+
+def test_cli_preserves_top_level_options(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["glm-launch", "--version"])
+    monkeypatch.setattr(main, "app", lambda: None)
+
+    main.cli()
+
+    assert sys.argv == ["glm-launch", "--version"]
