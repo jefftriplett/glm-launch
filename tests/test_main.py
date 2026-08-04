@@ -156,6 +156,78 @@ def test_claude_dry_run_does_not_require_binary(monkeypatch) -> None:
     assert "ANTHROPIC_AUTH_TOKEN=secr***" in result.stdout
 
 
+def _capture_execvpe(monkeypatch) -> dict:
+    captured: dict = {}
+
+    def fake_execvpe(binary, args, env):
+        captured.update(binary=binary, args=args, env=env)
+
+    monkeypatch.setattr(main.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(main.os, "execvpe", fake_execvpe)
+    return captured
+
+
+def test_glm_env_vars_flow_through_to_exec_env(monkeypatch) -> None:
+    captured = _capture_execvpe(monkeypatch)
+    monkeypatch.setenv("GLM_BASE_URL", "https://example.test/anthropic")
+    monkeypatch.setenv("GLM_AUTH_TOKEN", "secret-token")
+    monkeypatch.setenv("GLM_API_KEY", "api-secret")
+
+    result = runner.invoke(main.app, ["claude", "--model", "glm-5.2"])
+
+    assert result.exit_code == 0
+    assert captured["binary"] == "/usr/bin/claude"
+    assert captured["args"] == ["/usr/bin/claude", "--model", "glm-5.2"]
+    assert captured["env"]["ANTHROPIC_BASE_URL"] == "https://example.test/anthropic"
+    assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "secret-token"
+    assert captured["env"]["ANTHROPIC_API_KEY"] == "api-secret"
+    assert captured["env"]["ANTHROPIC_MODEL"] == "glm-5.2"
+
+
+def test_exec_env_drops_inherited_anthropic_api_key(monkeypatch) -> None:
+    captured = _capture_execvpe(monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "inherited-key")
+    monkeypatch.setenv("GLM_AUTH_TOKEN", "secret-token")
+    monkeypatch.delenv("GLM_API_KEY", raising=False)
+
+    result = runner.invoke(main.app, ["claude"])
+
+    assert result.exit_code == 0
+    assert "ANTHROPIC_API_KEY" not in captured["env"]
+    assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "secret-token"
+
+
+def test_exec_env_preserves_unrelated_environment(monkeypatch) -> None:
+    captured = _capture_execvpe(monkeypatch)
+    monkeypatch.setenv("GLM_AUTH_TOKEN", "secret-token")
+    monkeypatch.setenv("UNRELATED_VAR", "keep-me")
+
+    result = runner.invoke(main.app, ["claude"])
+
+    assert result.exit_code == 0
+    assert captured["env"]["UNRELATED_VAR"] == "keep-me"
+
+
+def test_extra_args_pass_through_to_claude(monkeypatch) -> None:
+    captured = _capture_execvpe(monkeypatch)
+    monkeypatch.setenv("GLM_AUTH_TOKEN", "secret-token")
+
+    result = runner.invoke(
+        main.app,
+        ["claude", "--model", "glm-5.2", "--", "--verbose", "-p", "hi"],
+    )
+
+    assert result.exit_code == 0
+    assert captured["args"] == [
+        "/usr/bin/claude",
+        "--model",
+        "glm-5.2",
+        "--verbose",
+        "-p",
+        "hi",
+    ]
+
+
 @pytest.mark.parametrize(
     ("option", "value", "message"),
     [

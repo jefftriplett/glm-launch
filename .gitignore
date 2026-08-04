@@ -11,6 +11,7 @@ wheels/
 
 # Tool caches
 .ruff_cache/
+.pytest_cache/
 
 # Local docs reference (just docs)
 zai-llms-full.txt

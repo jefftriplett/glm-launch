@@ -4,6 +4,12 @@ version = "2026.7.6"
 description = "Wrap Claude Code with Z.ai GLM settings"
 readme = "README.md"
 requires-python = ">=3.13"
+classifiers = [
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Programming Language :: Python :: Free Threading",
+]
 dependencies = ["typer"]
 
 [dependency-groups]

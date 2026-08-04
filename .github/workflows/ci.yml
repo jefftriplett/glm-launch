@@ -21,13 +21,20 @@ jobs:
         run: uvx prek run --all-files
 
   test:
-    name: Test and build
+    name: Test and build (${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.14t is the free-threaded build (matches the Free Threading classifier)
+        python-version: ["3.13", "3.14", "3.14t"]
     steps:
       - uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: uv sync --locked
