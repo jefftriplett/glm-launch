@@ -12,7 +12,7 @@ Requires Python 3.13+.
 # 1. Set your Z.AI auth token
 export GLM_AUTH_TOKEN="your-zai-api-key"
 
-# 2. Launch Claude Code routed through Z.AI (defaults to glm-5.2[1m])
+# 2. Launch Claude Code routed through Z.AI (defaults to glm-5.3)
 uv run glm-launch              # bare command defaults to `claude`
 uv run glm-launch claude       # same thing, explicit
 
@@ -76,15 +76,15 @@ uv run glm-launch launch claude
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
-| `--model` / `-m` | — | `glm-5.2[1m]` | Model name passed to `claude --model`; the `[1m]` suffix enables the 1M context tier |
+| `--model` / `-m` | — | `glm-5.3` | Model name passed to `claude --model`; `glm-5.3` serves 1M context natively, older models need the `[1m]` suffix for the 1M tier |
 | `--base-url` | `GLM_BASE_URL` | `https://api.z.ai/api/anthropic` | API endpoint |
 | `--api-key` | `GLM_API_KEY` | `""` | API key |
 | `--auth-token` | `GLM_AUTH_TOKEN` | **(required)** | Z.AI auth token |
 | `--api-timeout-ms` | `API_TIMEOUT_MS` | `3000000` | Request timeout in milliseconds (positive integer) |
 | `--default-haiku-model` | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `glm-4.5-air` | Model for Haiku-tier requests |
-| `--default-sonnet-model` | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `glm-5.2[1m]` | Model for Sonnet-tier requests |
-| `--default-opus-model` | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `glm-5.2[1m]` | Model for Opus-tier requests |
-| `--default-fable-model` | `ANTHROPIC_DEFAULT_FABLE_MODEL` | `glm-5.2[1m]` | Model for Fable-tier requests |
+| `--default-sonnet-model` | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `glm-5.3` | Model for Sonnet-tier requests |
+| `--default-opus-model` | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `glm-5.3` | Model for Opus-tier requests |
+| `--default-fable-model` | `ANTHROPIC_DEFAULT_FABLE_MODEL` | `glm-5.3` | Model for Fable-tier requests |
 | `--subagent-model` | `CLAUDE_CODE_SUBAGENT_MODEL` | `glm-4.5-air` | Model used for spawned subagents |
 | `--effort-level` | `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort level for the agent loop: `low`, `medium`, `high`, `xhigh`, `max`, or `ultracode` (see [Effort levels](#effort-levels)) |
 | `--attribution-header` | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `0` | Attribution header toggle (`0` or `1`; `0` disables it) |
@@ -110,26 +110,28 @@ The following env vars are set before exec'ing `claude`:
 
 > [!NOTE]
 > With the default `auto`, the context settings are sized to the selected
-> `--model` automatically: `glm-5.2[1m]` gets 1M tokens, most other models
-> 200K, and `glm-4.5`/`glm-4.5-air` 128K (unknown models fall back to 200K).
-> The `[1m]` suffix is what enables Z.AI's 1M context tier — plain `glm-5.2`
+> `--model` automatically: `glm-5.3` and `glm-5.2[1m]` get 1M tokens, most
+> other models 200K, and `glm-4.5`/`glm-4.5-air` 128K (unknown models fall
+> back to 200K). `glm-5.3` serves the 1M window natively; for older models
+> the `[1m]` suffix is what enables Z.AI's 1M context tier — plain `glm-5.2`
 > serves the standard 200K window. Pass an explicit number to override, or an
 > empty string to leave the env vars unset. Run `glm-launch models` to see
 > each model's window.
 
 #### Effort levels
 
-GLM-5.2 collapses Claude Code's effort ladder into two effective tiers
-([source](https://docs.z.ai/devpack/latest-model)):
+Z.AI collapses Claude Code's effort ladder into the model's thinking tiers
+([source](https://docs.z.ai/guides/llm/glm-5.3)):
 
-| Claude Code effort | GLM-5.2 actual effort |
-|--------------------|-----------------------|
-| `low`, `medium`, `high` | `high` |
-| `xhigh`, `max`, `ultracode` | `max` |
+| Claude Code effort | GLM-5.3 effort | GLM-5.2 effort |
+|--------------------|----------------|----------------|
+| `low` | `low` (light) | `high` |
+| `medium`, `high` | `high` (enhanced) | `high` |
+| `xhigh`, `max`, `ultracode` | `max` (deep) | `max` |
 
-So `--effort-level` is effectively a two-position switch: `high` (faster) or
-`max` (deeper reasoning). Z.AI recommends `max` for coding, which is the
-default here. You can also switch mid-session with the `/effort` command in
+GLM-5.3 no longer supports disabling thinking entirely — `low` is the
+lightest setting. Z.AI recommends `max` for coding, which is the default
+here. You can also switch mid-session with the `/effort` command in
 Claude Code.
 
 > [!TIP]
@@ -143,13 +145,17 @@ Claude Code.
 **Examples:**
 
 ```bash
-# Use defaults (glm-5.2[1m] with 1M context, Z.AI endpoint)
+# Use defaults (glm-5.3 with 1M context, Z.AI endpoint)
 uv run glm-launch launch claude
 
-# Flagship with the 1M context tier (the default)
+# The flagship (the default) — 1M context is standard on glm-5.3
+uv run glm-launch launch claude --model glm-5.3
+
+# Previous flagship with the 1M context tier (the coding plan
+# auto-routes glm-5.2/glm-5.1 requests to glm-5.3)
 uv run glm-launch launch claude --model "glm-5.2[1m]"
 
-# Flagship on the standard 200K window (cheaper)
+# Previous flagship on the standard 200K window (cheaper)
 uv run glm-launch launch claude --model glm-5.2
 
 # Long-horizon agentic flagship
@@ -163,7 +169,7 @@ uv run glm-launch launch claude --model glm-4.5-air
 
 # Tune the model tiers independently (e.g. cheap subagents, flagship main)
 uv run glm-launch launch claude \
-  --model "glm-5.2[1m]" \
+  --model glm-5.3 \
   --subagent-model glm-4.5-air \
   --default-haiku-model glm-4.5-air
 
@@ -243,7 +249,7 @@ uv run glm-launch bench
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
-| `--model` / `-m` | — | `glm-5.2` | Model to benchmark |
+| `--model` / `-m` | — | `glm-5.3` | Model to benchmark |
 | `--base-url` | `GLM_BASE_URL` | `https://api.z.ai/api/anthropic` | API endpoint |
 | `--auth-token` | `GLM_AUTH_TOKEN` | **(required)** | Auth token for the endpoint |
 | `--timeout` | — | `30.0` | Request timeout in seconds (must be greater than zero) |
@@ -253,7 +259,7 @@ Sends a minimal 32-token request and prints the round-trip time. Exits non-zero 
 **Example output:**
 
 ```
-  glm-5.2 via https://api.z.ai/api/anthropic
+  glm-5.3 via https://api.z.ai/api/anthropic
   OK (200) in 412ms
 ```
 
@@ -277,7 +283,7 @@ uv run glm-launch doctor
 
 - **Authentication** — Whether the required `GLM_AUTH_TOKEN` is set. The token is masked in output.
 - **Environment variables** — Whether the optional GLM, Anthropic default-model, and Claude Code env vars used by the launch commands are set.
-- **Binaries** — Whether `claude` is found on PATH (with fallback to `~/.claude/local/claude`), including its version — the default `glm-5.2[1m]` model needs a recent Claude Code, so if claude reports the `[1m]` model doesn't exist, upgrade.
+- **Binaries** — Whether `claude` is found on PATH (with fallback to `~/.claude/local/claude`), including its version — `[1m]`-suffixed models need a recent Claude Code, so if claude reports the model doesn't exist, upgrade.
 
 Exits with code 1 if `GLM_AUTH_TOKEN` is not set or the `claude` binary is missing, 0 otherwise.
 
