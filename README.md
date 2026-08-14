@@ -17,8 +17,8 @@ uv run glm-launch              # bare command defaults to `claude`
 uv run glm-launch claude       # same thing, explicit
 
 # Pick a different model
-uv run glm-launch --model glm-5.1               # bare options also go to `claude`
-uv run glm-launch claude --model glm-5.1        # long-horizon flagship
+uv run glm-launch --model glm-4.7               # bare options also go to `claude`
+uv run glm-launch claude --model glm-4.7        # balanced cost/performance
 uv run glm-launch claude --model glm-5-turbo    # fast
 uv run glm-launch claude --model glm-4.5-air    # cheap
 
@@ -66,7 +66,7 @@ uvx --from git+https://github.com/jefftriplett/glm-launch@main glm-launch models
 
 Launch [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with GLM environment settings. Sets Anthropic env vars to route requests through Z.AI's Anthropic-compatible endpoint, then exec's the `claude` binary.
 
-> The `launch` prefix is optional: `glm-launch claude` is equivalent to `glm-launch launch claude`, and a bare `glm-launch` defaults to `claude`. Claude options can also be passed directly, so `glm-launch --model glm-5.1` is equivalent to `glm-launch claude --model glm-5.1`.
+> The `launch` prefix is optional: `glm-launch claude` is equivalent to `glm-launch launch claude`, and a bare `glm-launch` defaults to `claude`. Claude options can also be passed directly, so `glm-launch --model glm-4.7` is equivalent to `glm-launch claude --model glm-4.7`.
 
 ```bash
 uv run glm-launch launch claude
@@ -158,8 +158,8 @@ uv run glm-launch launch claude --model "glm-5.2[1m]"
 # Previous flagship on the standard 200K window (cheaper)
 uv run glm-launch launch claude --model glm-5.2
 
-# Long-horizon agentic flagship
-uv run glm-launch launch claude --model glm-5.1
+# Balanced cost/performance coding model
+uv run glm-launch launch claude --model glm-4.7
 
 # Fast, speed-optimized GLM-5 variant
 uv run glm-launch launch claude --model glm-5-turbo
@@ -211,7 +211,7 @@ Accepts the same model/auth options as `launch claude` (`--model`, `--auth-token
 uv run glm-launch shell
 
 # Bootstrap with a specific model
-eval "$(uv run glm-launch shell --model glm-5.1)"
+eval "$(uv run glm-launch shell --model glm-4.7)"
 ```
 
 ### `models`
