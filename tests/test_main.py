@@ -36,7 +36,9 @@ def _claude_env(**overrides: str) -> dict[str, str]:
 
 
 def test_context_window_for_known_and_custom_models() -> None:
+    assert main._context_window_for("glm-5.3") == 1_000_000
     assert main._context_window_for("glm-5.2[1m]") == 1_000_000
+    assert main._context_window_for("glm-5.2") == 200_000
     assert main._context_window_for("glm-4.6v") == 128_000
     assert main._context_window_for("custom[1m]") == 1_000_000
     assert main._context_window_for("custom") == main.DEFAULT_CONTEXT_WINDOW
@@ -76,6 +78,7 @@ def test_models_command_lists_known_models() -> None:
     result = runner.invoke(main.app, ["models"])
 
     assert result.exit_code == 0
+    assert "glm-5.3" in result.stdout
     assert "glm-5.2[1m]" in result.stdout
     assert "glm-4.5-air" in result.stdout
 
@@ -195,6 +198,32 @@ def test_exec_env_drops_inherited_anthropic_api_key(monkeypatch) -> None:
     assert result.exit_code == 0
     assert "ANTHROPIC_API_KEY" not in captured["env"]
     assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "secret-token"
+
+
+def test_default_launch_uses_glm53_with_1m_context(monkeypatch) -> None:
+    captured = _capture_execvpe(monkeypatch)
+    monkeypatch.setenv("GLM_AUTH_TOKEN", "secret-token")
+
+    result = runner.invoke(main.app, ["claude"])
+
+    assert result.exit_code == 0
+    assert captured["env"]["ANTHROPIC_MODEL"] == "glm-5.3"
+    assert captured["env"]["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == "1000000"
+    assert captured["env"]["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "1000000"
+    assert captured["env"]["CLAUDE_CODE_EFFORT_LEVEL"] == "max"
+
+
+def test_older_models_still_launch_with_their_context_windows(monkeypatch) -> None:
+    captured = _capture_execvpe(monkeypatch)
+    monkeypatch.setenv("GLM_AUTH_TOKEN", "secret-token")
+
+    for model, window in [("glm-5.2[1m]", "1000000"), ("glm-5.2", "200000")]:
+        result = runner.invoke(main.app, ["claude", "--model", model])
+
+        assert result.exit_code == 0
+        assert result.stderr == ""  # known models launch without a warning
+        assert captured["env"]["ANTHROPIC_MODEL"] == model
+        assert captured["env"]["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == window
 
 
 def test_exec_env_preserves_unrelated_environment(monkeypatch) -> None:

@@ -61,15 +61,16 @@ def launch_main(ctx: typer.Context) -> None:
 # ---------------------------------------------------------------------------
 
 # Current Z.ai GLM models (API IDs are lowercase). Each entry is
-# (model_id, context_window_tokens, description). The `[1m]` suffix enables
-# the 1M context tier (billed separately); plain glm-5.2 serves the standard
-# window. Kept here so `models`, the auto context defaults, and the help text
-# stay in one place. See https://z.ai/model-api and
-# https://docs.z.ai/devpack/latest-model
+# (model_id, context_window_tokens, description). glm-5.3 serves a 1M context
+# window natively; for glm-5.2 the `[1m]` suffix enables the 1M context tier
+# (billed separately) and the plain ID serves the standard window. Kept here
+# so `models`, the auto context defaults, and the help text stay in one
+# place. See https://z.ai/model-api and https://docs.z.ai/devpack/latest-model
 ZAI_MODELS: list[tuple[str, int, str]] = [
+    ("glm-5.3", 1_000_000, "Flagship — frontier coding, 1M context standard"),
     ("glm-5.2[1m]", 1_000_000, "Flagship with the 1M context tier enabled"),
-    ("glm-5.2", 200_000, "Flagship — frontier reasoning, coding, agentic tasks"),
-    ("glm-5.1", 200_000, "Long-horizon agentic flagship"),
+    ("glm-5.2", 200_000, "Flagship (coding plan routes this to glm-5.3)"),
+    ("glm-5.1", 200_000, "Long-horizon agentic (coding plan routes to glm-5.3)"),
     ("glm-5", 200_000, "GLM-5 flagship"),
     ("glm-5-turbo", 200_000, "Speed-optimized GLM-5 variant"),
     ("glm-5v-turbo", 200_000, "Vision-capable GLM-5-Turbo variant"),
@@ -223,11 +224,12 @@ def _validate_toggle(value: str) -> str:
 # Shared option declarations for `launch claude` and `shell`, so each
 # flag/envvar/default/help lives in exactly one place.
 MODEL_OPTION = typer.Option(
-    "glm-5.2[1m]",
+    "glm-5.3",
     "--model",
     "-m",
     help="Model name (ANTHROPIC_MODEL, passed to claude --model); "
-    "the [1m] suffix enables the 1M context tier",
+    "glm-5.3 serves 1M context natively, older models need the [1m] suffix "
+    "to enable the 1M context tier",
 )
 BASE_URL_OPTION = typer.Option(
     "https://api.z.ai/api/anthropic",
@@ -253,19 +255,19 @@ DEFAULT_HAIKU_MODEL_OPTION = typer.Option(
     help="Default model for Haiku-tier requests",
 )
 DEFAULT_SONNET_MODEL_OPTION = typer.Option(
-    "glm-5.2[1m]",
+    "glm-5.3",
     "--default-sonnet-model",
     envvar="ANTHROPIC_DEFAULT_SONNET_MODEL",
     help="Default model for Sonnet-tier requests",
 )
 DEFAULT_OPUS_MODEL_OPTION = typer.Option(
-    "glm-5.2[1m]",
+    "glm-5.3",
     "--default-opus-model",
     envvar="ANTHROPIC_DEFAULT_OPUS_MODEL",
     help="Default model for Opus-tier requests",
 )
 DEFAULT_FABLE_MODEL_OPTION = typer.Option(
-    "glm-5.2[1m]",
+    "glm-5.3",
     "--default-fable-model",
     envvar="ANTHROPIC_DEFAULT_FABLE_MODEL",
     help="Default model for Fable-tier requests",
@@ -276,16 +278,18 @@ SUBAGENT_MODEL_OPTION = typer.Option(
     envvar="CLAUDE_CODE_SUBAGENT_MODEL",
     help="Model used for spawned subagents",
 )
-# GLM-5.2 collapses Claude Code's effort ladder into two effective tiers:
-# low/medium/high -> high, xhigh/max/ultracode -> max. Z.ai recommends max
-# for coding. See https://docs.z.ai/devpack/latest-model
+# Z.ai collapses Claude Code's effort ladder into the model's thinking
+# tiers. GLM-5.3 supports low/high/max (thinking cannot be disabled);
+# GLM-5.2 only distinguishes high vs max. Z.ai recommends max for coding.
+# See https://docs.z.ai/guides/llm/glm-5.3
 EFFORT_LEVEL_OPTION = typer.Option(
     "max",
     "--effort-level",
     envvar="CLAUDE_CODE_EFFORT_LEVEL",
     callback=_validate_effort_level,
-    help="Effort level; GLM-5.2 only distinguishes high (faster) vs max (deeper) — "
-    "low/medium/high map to high, xhigh/max map to max",
+    help="Effort level; GLM-5.3 supports low (light), high (enhanced), and "
+    "max (deep) thinking — other Claude Code levels map to the nearest tier "
+    "(GLM-5.2 only distinguishes high vs max)",
 )
 ATTRIBUTION_HEADER_OPTION = typer.Option(
     "0",
@@ -613,7 +617,7 @@ def models(
 
 @app.command()
 def bench(
-    model: str = typer.Option("glm-5.2", "--model", "-m", help="Model to benchmark"),
+    model: str = typer.Option("glm-5.3", "--model", "-m", help="Model to benchmark"),
     base_url: str = typer.Option(
         "https://api.z.ai/api/anthropic",
         "--base-url",
@@ -772,8 +776,8 @@ def doctor() -> None:
 
     print()
     print(
-        "Note: the default model glm-5.2[1m] needs a recent Claude Code -- if "
-        "claude reports the [1m] model does not exist, upgrade Claude Code."
+        "Note: [1m]-suffixed models (e.g. glm-5.2[1m]) need a recent Claude "
+        "Code -- if claude reports the model does not exist, upgrade Claude Code."
     )
 
     print()
