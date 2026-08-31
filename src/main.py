@@ -61,13 +61,17 @@ def launch_main(ctx: typer.Context) -> None:
 # ---------------------------------------------------------------------------
 
 # Current Z.ai GLM models (API IDs are lowercase). Each entry is
-# (model_id, context_window_tokens, description). glm-5.3 serves a 1M context
-# window natively; for glm-5.2 the `[1m]` suffix enables the 1M context tier
-# (billed separately) and the plain ID serves the standard window. Kept here
-# so `models`, the auto context defaults, and the help text stay in one
-# place. See https://z.ai/model-api and https://docs.z.ai/devpack/latest-model
+# (model_id, context_window_tokens, description). glm-5.3 and glm-5.3-flash
+# serve a 1M context window natively, though Claude Code needs the explicit
+# `[1m]` suffix to unlock the tier; for glm-5.2 the `[1m]` suffix enables the
+# 1M tier (billed separately) and the plain ID serves the standard window.
+# Kept here so `models`, the auto context defaults, and the help text stay in
+# one place. See https://z.ai/model-api and
+# https://docs.z.ai/devpack/latest-model
 ZAI_MODELS: list[tuple[str, int, str]] = [
     ("glm-5.3", 1_000_000, "Flagship — frontier coding, 1M context standard"),
+    ("glm-5.3-flash[1m]", 1_000_000, "Native multimodal, 1M context tier enabled"),
+    ("glm-5.3-flash", 1_000_000, "Native multimodal (video/image/text/file), low cost"),
     ("glm-5.2[1m]", 1_000_000, "Flagship with the 1M context tier enabled"),
     ("glm-5.2", 200_000, "Flagship (coding plan routes this to glm-5.3)"),
     ("glm-5.1", 200_000, "Long-horizon agentic (coding plan routes to glm-5.3)"),
