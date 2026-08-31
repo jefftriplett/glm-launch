@@ -385,3 +385,53 @@ def test_bench_all_probes_every_registry_model_and_exits_nonzero(monkeypatch) ->
     assert result.exit_code == 1
     assert probed == [model_id for model_id, _, _ in main.ZAI_MODELS]
     assert "failed to resolve" in result.stdout
+
+
+def test_probe_result_classifies_throttling_and_unknown_models() -> None:
+    """A 429 means the ID exists; only `does not exist` means it does not."""
+    throttled = main.ProbeResult("glm-5v-turbo", False, "429", 10, "rate limited")
+    unknown = main.ProbeResult(
+        "glm-5.2[1m]", False, "400", 10, '{"message":"modelCode: does not exist"}'
+    )
+
+    assert throttled.throttled and not throttled.unknown_model
+    assert unknown.unknown_model and not unknown.throttled
+
+
+def test_bench_all_does_not_fail_on_rate_limited_models(monkeypatch) -> None:
+    """A 429 is a quota problem, not evidence the model ID is bad."""
+
+    def fake_probe(model, base_url, auth_token, timeout):
+        if model == "glm-5v-turbo":
+            return main.ProbeResult(model, False, "429", 10, "rate limited")
+        return main.ProbeResult(model, True, "200", 10)
+
+    monkeypatch.setattr(main, "_probe_model", fake_probe)
+    result = runner.invoke(main.app, ["bench", "--all", "--auth-token", "t"])
+
+    assert result.exit_code == 0
+    assert "SKIP" in result.stdout
+    assert "rate limited and not verified" in result.stdout
+
+
+def test_bench_all_only_blames_model_code_when_the_api_said_so(monkeypatch) -> None:
+    """The `does not exist` hint must key off the body, not the model name."""
+
+    def fake_probe(model, base_url, auth_token, timeout):
+        if model == "glm-5.2[1m]":
+            return main.ProbeResult(model, False, "500", 10, "internal error")
+        return main.ProbeResult(model, True, "200", 10)
+
+    monkeypatch.setattr(main, "_probe_model", fake_probe)
+    result = runner.invoke(main.app, ["bench", "--all", "--auth-token", "t"])
+
+    assert result.exit_code == 1
+    assert "does not exist" not in result.stdout
+
+
+def test_probe_model_returns_result_for_invalid_url() -> None:
+    """A bad URL must not abort a whole --all sweep."""
+    result = main._probe_model("glm-5.3", "not a url", "t", 5.0)
+
+    assert result.ok is False
+    assert "invalid URL" in result.status

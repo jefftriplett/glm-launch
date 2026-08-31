@@ -90,6 +90,9 @@ ZAI_MODELS: list[tuple[str, int, str]] = [
 # Conservative fallback for model IDs not in the registry.
 DEFAULT_CONTEXT_WINDOW = 200_000
 
+# Default model for `bench`; also lets `--all` tell an explicit -m from the default.
+BENCH_DEFAULT_MODEL = "glm-5.3"
+
 
 def _context_window_for(model: str) -> int:
     """Resolve a model ID to its context window in tokens."""
@@ -630,15 +633,29 @@ class ProbeResult(NamedTuple):
     elapsed_ms: int
     body: str = ""
 
+    @property
+    def throttled(self) -> bool:
+        """True when the ID exists but the key is rate limited or out of quota."""
+        return self.status == "429"
+
+    @property
+    def unknown_model(self) -> bool:
+        """True when Z.ai rejected the model code itself.
+
+        Z.ai answers an unknown or unentitled model with HTTP 400 and
+        `modelCode: does not exist` rather than a 404, so this is the only
+        signal that separates a bad ID from an ordinary request failure.
+        """
+        return "does not exist" in self.body
+
 
 def _probe_model(
     model: str, base_url: str, auth_token: str, timeout: float
 ) -> ProbeResult:
     """POST a minimal message to `model` and report whether the ID resolves.
 
-    Z.ai answers an unknown or unentitled model ID with HTTP 400 and
-    `modelCode: does not exist` rather than a 404, so a `[1m]` suffix that the
-    plan does not cover is only detectable by actually calling it.
+    Never raises: every outcome, including a malformed URL, comes back as a
+    ProbeResult so a caller sweeping many models is not aborted by one of them.
     """
     import time
     import urllib.error
@@ -665,7 +682,7 @@ def _probe_model(
             method="POST",
         )
     except ValueError as e:
-        raise SystemExit(f"Invalid API URL: {e}") from None
+        return ProbeResult(model, False, f"invalid URL: {e}", 0)
 
     start = time.monotonic()
     try:
@@ -686,7 +703,9 @@ def _probe_model(
 
 @app.command()
 def bench(
-    model: str = typer.Option("glm-5.3", "--model", "-m", help="Model to benchmark"),
+    model: str = typer.Option(
+        BENCH_DEFAULT_MODEL, "--model", "-m", help="Model to benchmark"
+    ),
     base_url: str = typer.Option(
         "https://api.z.ai/api/anthropic",
         "--base-url",
@@ -709,14 +728,27 @@ def bench(
         "verifies each ID actually resolves (including the `[1m]` tiers)",
     ),
 ) -> None:
-    """Time a single /v1/messages round-trip against the configured endpoint."""
+    """Time a /v1/messages round-trip, or probe every model ID with --all."""
+    if all_models and model != BENCH_DEFAULT_MODEL:
+        print(f"  note: --all probes the whole registry; ignoring --model {model}")
+
     models = [m for m, _, _ in ZAI_MODELS] if all_models else [model]
     failures: list[ProbeResult] = []
+    throttled: list[ProbeResult] = []
+
+    if all_models:
+        print(f"  probing {len(models)} models via {base_url}\n")
 
     for name in models:
         result = _probe_model(name, base_url, auth_token, timeout)
+
         if all_models:
-            mark = "ok  " if result.ok else "FAIL"
+            if result.ok:
+                mark = "ok  "
+            elif result.throttled:
+                mark = "SKIP"
+            else:
+                mark = "FAIL"
             print(f"  {mark} {name:<20} {result.status:>5}  {result.elapsed_ms}ms")
         else:
             print(f"  {name} via {base_url}")
@@ -726,19 +758,34 @@ def bench(
                 print(f"  FAIL ({result.status}) in {result.elapsed_ms}ms")
                 if result.body:
                     print(f"  {result.body[:200]}")
-        if not result.ok:
+
+        if result.ok:
+            continue
+        # A 429 means the ID resolved but the key is out of quota; that says
+        # nothing about whether the model exists, so it is not a failure here.
+        if result.throttled:
+            throttled.append(result)
+        else:
             failures.append(result)
 
-    if failures:
-        if all_models:
+    if all_models:
+        if throttled:
+            print(
+                f"\n  {len(throttled)} model(s) were rate limited and not verified: "
+                + ", ".join(r.model for r in throttled)
+            )
+        if failures:
             print(f"\n  {len(failures)} of {len(models)} model(s) failed to resolve.")
-            if any(f.model.endswith("[1m]") for f in failures):
+            unknown = [f.model for f in failures if f.unknown_model]
+            if unknown:
                 print(
-                    "  A `[1m]` ID rejected as `modelCode: does not exist` means "
-                    "Z.ai did not accept the suffix for this account. Z.ai's "
-                    "docs suggest upgrading Claude Code; the tier may also not "
-                    "be enabled on your key."
+                    "  Rejected as `modelCode: does not exist`: "
+                    + ", ".join(unknown)
+                    + "\n  Z.ai did not accept these IDs for this account; drop "
+                    "them from the registry if they stay broken."
                 )
+
+    if failures:
         raise typer.Exit(code=1)
 
 

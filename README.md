@@ -282,12 +282,22 @@ uv run glm-launch bench --all
 ```
 
 ```
+  probing 14 models via https://api.z.ai/api/anthropic
+
   ok   glm-5.3                200  1980ms
   FAIL glm-5.3-flash[1m]      400  427ms
   ok   glm-5.3-flash          200  1686ms
+  SKIP glm-5v-turbo           429  752ms
   ...
+  1 model(s) were rate limited and not verified: glm-5v-turbo
+
   2 of 14 model(s) failed to resolve.
+  Rejected as `modelCode: does not exist`: glm-5.3-flash[1m], glm-5.2[1m]
 ```
+
+A `429` is reported as `SKIP`, not a failure — it means the ID resolved but the
+key is out of quota, which says nothing about whether the model exists. Only
+IDs the API actually rejects count toward the non-zero exit.
 
 The same probe is available as an opt-in test suite:
 

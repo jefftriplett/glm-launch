@@ -54,7 +54,7 @@ def _probe(model: str) -> main.ProbeResult:
 def test_registry_model_resolves(model: str) -> None:
     """Every advertised model ID must be callable, not just well-formed."""
     result = _probe(model)
-    if result.status == "429":
+    if result.throttled:
         pytest.skip(f"{model} is rate limited / out of quota right now")
     assert result.ok, (
         f"{model} did not resolve ({result.status}): {result.body[:200]}\n"
@@ -70,9 +70,9 @@ def test_one_m_models_are_not_silently_missing(model: str) -> None:
     window for an ID the API rejected outright.
     """
     result = _probe(model)
-    if result.status == "429":
+    if result.throttled:
         pytest.skip(f"{model} is rate limited / out of quota right now")
-    assert "does not exist" not in result.body, (
+    assert not result.unknown_model, (
         f"{model} is advertised in ZAI_MODELS but Z.ai rejects it as unknown. "
         "Either the 1M tier is not enabled for this key or the ID should go."
     )
