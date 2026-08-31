@@ -320,3 +320,68 @@ def test_bench_reports_timeout(monkeypatch) -> None:
 
     assert result.exit_code == 1
     assert "FAIL (timed out after 0.5s)" in result.stdout
+
+
+def _fake_http_error(code: int, body: bytes):
+    import urllib.error
+
+    return urllib.error.HTTPError(
+        url="https://api.z.ai/api/anthropic/v1/messages",
+        code=code,
+        msg="error",
+        hdrs=None,
+        fp=io.BytesIO(body),
+    )
+
+
+def test_probe_model_reports_unknown_model_code(monkeypatch) -> None:
+    """A `[1m]` ID Z.ai rejects must surface as a failure, not a 1M promise."""
+    body = b'{"error":{"code":"1214","message":"modelCode: does not exist"}}'
+
+    def fake_urlopen(*args, **kwargs):
+        raise _fake_http_error(400, body)
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    result = main._probe_model(
+        "glm-5.2[1m]", "https://api.z.ai/api/anthropic", "t", 5.0
+    )
+
+    assert result.ok is False
+    assert result.status == "400"
+    assert "does not exist" in result.body
+
+
+def test_probe_model_reports_success(monkeypatch) -> None:
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: FakeResponse())
+    result = main._probe_model("glm-5.3", "https://api.z.ai/api/anthropic", "t", 5.0)
+
+    assert result.ok is True
+    assert result.status == "200"
+
+
+def test_bench_all_probes_every_registry_model_and_exits_nonzero(monkeypatch) -> None:
+    """`bench --all` must check the whole registry and fail if any ID is bad."""
+    probed: list[str] = []
+
+    def fake_probe(model, base_url, auth_token, timeout):
+        probed.append(model)
+        ok = not model.endswith("[1m]")
+        return main.ProbeResult(
+            model, ok, "200" if ok else "400", 10, "" if ok else "x"
+        )
+
+    monkeypatch.setattr(main, "_probe_model", fake_probe)
+    result = runner.invoke(main.app, ["bench", "--all", "--auth-token", "t"])
+
+    assert result.exit_code == 1
+    assert probed == [model_id for model_id, _, _ in main.ZAI_MODELS]
+    assert "failed to resolve" in result.stdout

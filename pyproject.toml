@@ -47,3 +47,8 @@ tag = true
 "src/main.py" = [
     '__version__ = "{version}"',
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "live: hits the real Z.ai API; opt in with GLM_LIVE_TESTS=1",
+]

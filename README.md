@@ -110,14 +110,13 @@ The following env vars are set before exec'ing `claude`:
 
 > [!NOTE]
 > With the default `auto`, the context settings are sized to the selected
-> `--model` automatically: `glm-5.3`, `glm-5.3-flash` and `glm-5.2[1m]` get
-> 1M tokens, most other models 200K, and `glm-4.5`/`glm-4.5-air` 128K
-> (unknown models fall back to 200K). `glm-5.3` and `glm-5.3-flash` serve the
-> 1M window natively, though Claude Code needs the explicit `[1m]` suffix to
-> unlock the tier; for older models the `[1m]` suffix is what enables Z.AI's
-> 1M context tier — plain `glm-5.2` serves the standard 200K window. Pass an
-> explicit number to override, or an empty string to leave the env vars
-> unset. Run `glm-launch models` to see each model's window.
+> `--model` automatically: `glm-5.3` and the `[1m]` IDs get 1M tokens, most
+> other models 200K, and `glm-4.5`/`glm-4.5-air` 128K (unknown models fall
+> back to 200K). `glm-5.3` serves the 1M window natively; for other models
+> the `[1m]` suffix is what enables Z.AI's 1M context tier — plain `glm-5.2`
+> and `glm-5.3-flash` serve the standard 200K window. Pass an explicit number
+> to override, or an empty string to leave the env vars unset. Run
+> `glm-launch models` to see each model's window.
 
 #### Effort levels
 
@@ -154,7 +153,7 @@ uv run glm-launch launch claude --model glm-5.3
 
 # Native multimodal (video/image/text/file) at a much lower cost,
 # with 3x the coding-plan quota of glm-5.3
-uv run glm-launch launch claude --model "glm-5.3-flash[1m]"
+uv run glm-launch launch claude --model glm-5.3-flash
 
 # Previous flagship with the 1M context tier (the coding plan
 # auto-routes glm-5.2/glm-5.1 requests to glm-5.3)
@@ -258,6 +257,7 @@ uv run glm-launch bench
 | `--base-url` | `GLM_BASE_URL` | `https://api.z.ai/api/anthropic` | API endpoint |
 | `--auth-token` | `GLM_AUTH_TOKEN` | **(required)** | Auth token for the endpoint |
 | `--timeout` | — | `30.0` | Request timeout in seconds (must be greater than zero) |
+| `--all` | — | `false` | Probe every model in the registry instead of just `--model` |
 
 Sends a minimal 32-token request and prints the round-trip time. Exits non-zero on HTTP error or timeout.
 
@@ -267,6 +267,36 @@ Sends a minimal 32-token request and prints the round-trip time. Exits non-zero 
   glm-5.3 via https://api.z.ai/api/anthropic
   OK (200) in 412ms
 ```
+
+#### Verifying every model ID
+
+`glm-launch models` prints the built-in registry, and `models --remote` lists
+what the API advertises — but neither proves a given ID is callable with *your*
+key. Z.ai rejects an unknown or unentitled model with HTTP 400
+`modelCode: does not exist`, and the `[1m]` context IDs are a naming convention
+that never appears in the API's model list at all. `bench --all` is the check
+that actually calls each one:
+
+```bash
+uv run glm-launch bench --all
+```
+
+```
+  ok   glm-5.3                200  1980ms
+  FAIL glm-5.3-flash[1m]      400  427ms
+  ok   glm-5.3-flash          200  1686ms
+  ...
+  2 of 14 model(s) failed to resolve.
+```
+
+The same probe is available as an opt-in test suite:
+
+```bash
+GLM_LIVE_TESTS=1 uv run pytest -m live -v
+```
+
+These are skipped by default (and in CI) since they need a real token and hit
+the network.
 
 ### `usage`
 

@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 from importlib import metadata
+from typing import NamedTuple
 
 import typer
 
@@ -61,17 +62,18 @@ def launch_main(ctx: typer.Context) -> None:
 # ---------------------------------------------------------------------------
 
 # Current Z.ai GLM models (API IDs are lowercase). Each entry is
-# (model_id, context_window_tokens, description). glm-5.3 and glm-5.3-flash
-# serve a 1M context window natively, though Claude Code needs the explicit
-# `[1m]` suffix to unlock the tier; for glm-5.2 the `[1m]` suffix enables the
-# 1M tier (billed separately) and the plain ID serves the standard window.
-# Kept here so `models`, the auto context defaults, and the help text stay in
-# one place. See https://z.ai/model-api and
+# (model_id, context_window_tokens, description). glm-5.3 serves a 1M context
+# window natively; for glm-5.3-flash and glm-5.2 the `[1m]` suffix is what
+# enables the 1M tier (billed separately) and the plain ID serves the standard
+# window. Note the `[1m]` IDs are a Z.ai naming convention, not entries in the
+# API's own model list, and some keys get `modelCode: does not exist` for them
+# — `bench --all` is what verifies they really resolve. Kept here so `models`,
+# the auto context defaults, and the help text stay in one place. See https://z.ai/model-api and
 # https://docs.z.ai/devpack/latest-model
 ZAI_MODELS: list[tuple[str, int, str]] = [
     ("glm-5.3", 1_000_000, "Flagship — frontier coding, 1M context standard"),
     ("glm-5.3-flash[1m]", 1_000_000, "Native multimodal, 1M context tier enabled"),
-    ("glm-5.3-flash", 1_000_000, "Native multimodal (video/image/text/file), low cost"),
+    ("glm-5.3-flash", 200_000, "Native multimodal (video/image/text/file), low cost"),
     ("glm-5.2[1m]", 1_000_000, "Flagship with the 1M context tier enabled"),
     ("glm-5.2", 200_000, "Flagship (coding plan routes this to glm-5.3)"),
     ("glm-5.1", 200_000, "Long-horizon agentic (coding plan routes to glm-5.3)"),
@@ -619,26 +621,25 @@ def models(
 # ---------------------------------------------------------------------------
 
 
-@app.command()
-def bench(
-    model: str = typer.Option("glm-5.3", "--model", "-m", help="Model to benchmark"),
-    base_url: str = typer.Option(
-        "https://api.z.ai/api/anthropic",
-        "--base-url",
-        envvar="GLM_BASE_URL",
-        help="Base URL for the API endpoint",
-    ),
-    auth_token: str = typer.Option(
-        ...,
-        "--auth-token",
-        envvar="GLM_AUTH_TOKEN",
-        help="Auth token for the endpoint",
-    ),
-    timeout: float = typer.Option(
-        30.0, "--timeout", min=0.001, help="Request timeout in seconds"
-    ),
-) -> None:
-    """Time a single /v1/messages round-trip against the configured endpoint."""
+class ProbeResult(NamedTuple):
+    """Outcome of a single /v1/messages round-trip against one model ID."""
+
+    model: str
+    ok: bool
+    status: str
+    elapsed_ms: int
+    body: str = ""
+
+
+def _probe_model(
+    model: str, base_url: str, auth_token: str, timeout: float
+) -> ProbeResult:
+    """POST a minimal message to `model` and report whether the ID resolves.
+
+    Z.ai answers an unknown or unentitled model ID with HTTP 400 and
+    `modelCode: does not exist` rather than a 404, so a `[1m]` suffix that the
+    plan does not cover is only detectable by actually calling it.
+    """
     import time
     import urllib.error
     import urllib.request
@@ -666,27 +667,79 @@ def bench(
     except ValueError as e:
         raise SystemExit(f"Invalid API URL: {e}") from None
 
-    print(f"  {model} via {base_url}")
     start = time.monotonic()
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            elapsed_ms = int((time.monotonic() - start) * 1000)
-            print(f"  OK ({resp.status}) in {elapsed_ms}ms")
+            elapsed = int((time.monotonic() - start) * 1000)
+            return ProbeResult(model, True, str(resp.status), elapsed)
     except urllib.error.HTTPError as e:
-        elapsed_ms = int((time.monotonic() - start) * 1000)
+        elapsed = int((time.monotonic() - start) * 1000)
         body = e.read().decode("utf-8", errors="replace")
-        print(f"  FAIL ({e.code}) in {elapsed_ms}ms")
-        if body:
-            print(f"  {body[:200]}")
-        raise typer.Exit(code=1)
+        return ProbeResult(model, False, str(e.code), elapsed, body)
     except urllib.error.URLError as e:
-        elapsed_ms = int((time.monotonic() - start) * 1000)
-        print(f"  FAIL ({e.reason}) in {elapsed_ms}ms")
-        raise typer.Exit(code=1)
+        elapsed = int((time.monotonic() - start) * 1000)
+        return ProbeResult(model, False, str(e.reason), elapsed)
     except TimeoutError:
-        elapsed_ms = int((time.monotonic() - start) * 1000)
-        print(f"  FAIL (timed out after {timeout:g}s) in {elapsed_ms}ms")
-        raise typer.Exit(code=1) from None
+        elapsed = int((time.monotonic() - start) * 1000)
+        return ProbeResult(model, False, f"timed out after {timeout:g}s", elapsed)
+
+
+@app.command()
+def bench(
+    model: str = typer.Option("glm-5.3", "--model", "-m", help="Model to benchmark"),
+    base_url: str = typer.Option(
+        "https://api.z.ai/api/anthropic",
+        "--base-url",
+        envvar="GLM_BASE_URL",
+        help="Base URL for the API endpoint",
+    ),
+    auth_token: str = typer.Option(
+        ...,
+        "--auth-token",
+        envvar="GLM_AUTH_TOKEN",
+        help="Auth token for the endpoint",
+    ),
+    timeout: float = typer.Option(
+        30.0, "--timeout", min=0.001, help="Request timeout in seconds"
+    ),
+    all_models: bool = typer.Option(
+        False,
+        "--all",
+        help="Probe every model in the registry instead of just --model; "
+        "verifies each ID actually resolves (including the `[1m]` tiers)",
+    ),
+) -> None:
+    """Time a single /v1/messages round-trip against the configured endpoint."""
+    models = [m for m, _, _ in ZAI_MODELS] if all_models else [model]
+    failures: list[ProbeResult] = []
+
+    for name in models:
+        result = _probe_model(name, base_url, auth_token, timeout)
+        if all_models:
+            mark = "ok  " if result.ok else "FAIL"
+            print(f"  {mark} {name:<20} {result.status:>5}  {result.elapsed_ms}ms")
+        else:
+            print(f"  {name} via {base_url}")
+            if result.ok:
+                print(f"  OK ({result.status}) in {result.elapsed_ms}ms")
+            else:
+                print(f"  FAIL ({result.status}) in {result.elapsed_ms}ms")
+                if result.body:
+                    print(f"  {result.body[:200]}")
+        if not result.ok:
+            failures.append(result)
+
+    if failures:
+        if all_models:
+            print(f"\n  {len(failures)} of {len(models)} model(s) failed to resolve.")
+            if any(f.model.endswith("[1m]") for f in failures):
+                print(
+                    "  A `[1m]` ID rejected as `modelCode: does not exist` means "
+                    "Z.ai did not accept the suffix for this account. Z.ai's "
+                    "docs suggest upgrading Claude Code; the tier may also not "
+                    "be enabled on your key."
+                )
+        raise typer.Exit(code=1)
 
 
 # ---------------------------------------------------------------------------

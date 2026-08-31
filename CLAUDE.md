@@ -32,6 +32,9 @@ uv run src/main.py launch claude -- --verbose
 # Time a request against the configured GLM endpoint
 uv run src/main.py bench
 
+# Verify every registry model ID actually resolves (catches bad `[1m]` IDs)
+uv run src/main.py bench --all
+
 # List known Z.ai GLM models (built-in list)
 uv run src/main.py models
 
@@ -43,6 +46,9 @@ eval "$(uv run src/main.py shell)"
 
 # Run tests, lint checks, and a package build
 uv run pytest
+
+# Opt-in live tests that call every registry model (needs GLM_AUTH_TOKEN)
+GLM_LIVE_TESTS=1 uv run pytest -m live
 uv tool run prek run --all-files
 uv build
 ```
