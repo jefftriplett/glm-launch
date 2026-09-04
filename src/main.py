@@ -18,7 +18,7 @@ import typer
 try:
     __version__ = metadata.version("glm-launch")
 except metadata.PackageNotFoundError:  # running as a standalone script
-    __version__ = "2026.8.5"
+    __version__ = "2026.9.1"
 
 # ---------------------------------------------------------------------------
 # Environment variables
