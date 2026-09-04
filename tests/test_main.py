@@ -74,6 +74,19 @@ def test_secret_masking_and_shell_quoting() -> None:
     assert main._shell_quote("it's safe") == "'it'\"'\"'s safe'"
 
 
+def test_shell_unsets_inherited_anthropic_api_key_without_glm_api_key(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "inherited-key")
+    monkeypatch.setenv("GLM_AUTH_TOKEN", "secret-token")
+
+    result = runner.invoke(main.app, ["shell"])
+
+    assert result.exit_code == 0
+    assert "unset ANTHROPIC_API_KEY" in result.stdout
+    assert "export ANTHROPIC_API_KEY" not in result.stdout
+
+
 def test_models_command_lists_known_models() -> None:
     result = runner.invoke(main.app, ["models"])
 
@@ -88,6 +101,25 @@ def test_version_option() -> None:
 
     assert result.exit_code == 0
     assert result.stdout.strip() == main.__version__
+
+
+def test_help_lists_environment_variables() -> None:
+    result = runner.invoke(main.app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "Environment (all optional except GLM_AUTH_TOKEN):" in result.stdout
+    for name, _ in main.ENV_VARS:
+        assert name in result.stdout
+
+
+def test_doctor_reports_every_documented_env_var(monkeypatch) -> None:
+    monkeypatch.setattr(main.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(main, "_binary_version", lambda path: "1.0.0")
+
+    result = runner.invoke(main.app, ["doctor"], env={"GLM_AUTH_TOKEN": "secret-token"})
+
+    for name, _ in main.ENV_VARS:
+        assert f"{name}:" in result.stdout
 
 
 def test_doctor_fails_when_auth_token_is_missing(monkeypatch) -> None:

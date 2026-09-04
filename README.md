@@ -359,6 +359,8 @@ All checks passed.
 
 ## Environment variables
 
+All are optional except `GLM_AUTH_TOKEN`. `glm-launch --help` prints this same list, and `glm-launch doctor` shows which are currently set.
+
 | Variable | Used by | Description |
 |----------|---------|-------------|
 | `GLM_BASE_URL` | `launch claude`, `shell` | API base URL |

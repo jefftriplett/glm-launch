@@ -20,7 +20,48 @@ try:
 except metadata.PackageNotFoundError:  # running as a standalone script
     __version__ = "2026.8.5"
 
-app = typer.Typer(invoke_without_command=True)
+# ---------------------------------------------------------------------------
+# Environment variables
+# ---------------------------------------------------------------------------
+
+# (name, description). Every var is optional except GLM_AUTH_TOKEN. Single
+# source for the `--help` epilog and the `doctor` report, so the two can't
+# drift. Per-command help still shows each flag's own `[env var: ...]`.
+ENV_VARS: list[tuple[str, str]] = [
+    ("GLM_BASE_URL", "API base URL"),
+    ("GLM_API_KEY", "API key"),
+    ("GLM_AUTH_TOKEN", "Z.ai auth token (required)"),
+    ("GLM_MODELS_URL", "PaaS endpoint for models --remote"),
+    ("API_TIMEOUT_MS", "Request timeout in milliseconds"),
+    ("ANTHROPIC_DEFAULT_HAIKU_MODEL", "Model for Haiku-tier requests"),
+    ("ANTHROPIC_DEFAULT_SONNET_MODEL", "Model for Sonnet-tier requests"),
+    ("ANTHROPIC_DEFAULT_OPUS_MODEL", "Model for Opus-tier requests"),
+    ("ANTHROPIC_DEFAULT_FABLE_MODEL", "Model for Fable-tier requests"),
+    ("CLAUDE_CODE_SUBAGENT_MODEL", "Model for spawned subagents"),
+    ("CLAUDE_CODE_EFFORT_LEVEL", "Effort level, low through max or ultracode"),
+    ("CLAUDE_CODE_ATTRIBUTION_HEADER", "Attribution header toggle (0 or 1)"),
+    ("CLAUDE_CODE_AUTO_COMPACT_WINDOW", "Auto-compact window: auto or tokens"),
+    ("CLAUDE_CODE_MAX_CONTEXT_TOKENS", "Max context budget: auto or tokens"),
+]
+
+
+def _env_epilog() -> str:
+    """Render ENV_VARS as an `Environment:` block for the top-level --help.
+
+    The closing line is deliberately unindented: rich runs the epilog through
+    `inspect.cleandoc()`, which would strip the entries' indent if every line
+    after the first shared it.
+    """
+    width = max(len(name) for name, _ in ENV_VARS) + 2
+    rows = "\n".join(f"  {name:<{width}}{desc}" for name, desc in ENV_VARS)
+    return (
+        "Environment (all optional except GLM_AUTH_TOKEN):\n"
+        f"{rows}\n"
+        "Run `glm-launch doctor` to see which are set."
+    )
+
+
+app = typer.Typer(invoke_without_command=True, epilog=_env_epilog())
 launch_app = typer.Typer(
     help="Launch an LLM coding tool with GLM settings.",
     invoke_without_command=True,
@@ -515,6 +556,8 @@ def shell(
         auto_compact_window=auto_compact_window,
         max_context_tokens=max_context_tokens,
     )
+    if not api_key:
+        print("unset ANTHROPIC_API_KEY")
     for key, value in env.items():
         if value:
             print(f"export {key}={_shell_quote(value)}")
@@ -809,22 +852,7 @@ def usage() -> None:
 # doctor
 # ---------------------------------------------------------------------------
 
-_CLAUDE_ENV_VARS = [
-    "GLM_BASE_URL",
-    "GLM_API_KEY",
-    "GLM_AUTH_TOKEN",
-    "GLM_MODELS_URL",
-    "API_TIMEOUT_MS",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL",
-    "ANTHROPIC_DEFAULT_FABLE_MODEL",
-    "CLAUDE_CODE_SUBAGENT_MODEL",
-    "CLAUDE_CODE_EFFORT_LEVEL",
-    "CLAUDE_CODE_ATTRIBUTION_HEADER",
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
-    "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
-]
+_CLAUDE_ENV_VARS = [name for name, _ in ENV_VARS]
 
 _BINARIES = [
     ("claude", "~/.claude/local/claude"),
