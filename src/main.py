@@ -31,17 +31,21 @@ ENV_VARS: list[tuple[str, str]] = [
     ("GLM_BASE_URL", "API base URL"),
     ("GLM_API_KEY", "API key"),
     ("GLM_AUTH_TOKEN", "Z.ai auth token (required)"),
-    ("GLM_MODELS_URL", "PaaS endpoint for models --remote"),
+    ("GLM_MODELS_URL", "Model list endpoint (--remote)"),
     ("API_TIMEOUT_MS", "Request timeout in milliseconds"),
     ("ANTHROPIC_DEFAULT_HAIKU_MODEL", "Model for Haiku-tier requests"),
     ("ANTHROPIC_DEFAULT_SONNET_MODEL", "Model for Sonnet-tier requests"),
     ("ANTHROPIC_DEFAULT_OPUS_MODEL", "Model for Opus-tier requests"),
     ("ANTHROPIC_DEFAULT_FABLE_MODEL", "Model for Fable-tier requests"),
     ("CLAUDE_CODE_SUBAGENT_MODEL", "Model for spawned subagents"),
-    ("CLAUDE_CODE_EFFORT_LEVEL", "Effort level, low through max or ultracode"),
-    ("CLAUDE_CODE_ATTRIBUTION_HEADER", "Attribution header toggle (0 or 1)"),
-    ("CLAUDE_CODE_AUTO_COMPACT_WINDOW", "Auto-compact window: auto or tokens"),
-    ("CLAUDE_CODE_MAX_CONTEXT_TOKENS", "Max context budget: auto or tokens"),
+    ("CLAUDE_CODE_EFFORT_LEVEL", "Effort: low..max or ultracode"),
+    ("CLAUDE_CODE_ATTRIBUTION_HEADER", "Attribution header toggle (0/1)"),
+    (
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+        "Disable telemetry/updates (0/1)",
+    ),
+    ("CLAUDE_CODE_AUTO_COMPACT_WINDOW", "Auto-compact window (auto/count)"),
+    ("CLAUDE_CODE_MAX_CONTEXT_TOKENS", "Max context budget (auto/count)"),
 ]
 
 
@@ -348,6 +352,14 @@ ATTRIBUTION_HEADER_OPTION = typer.Option(
     callback=_validate_toggle,
     help="Attribution header toggle (0 disables it)",
 )
+DISABLE_NONESSENTIAL_TRAFFIC_OPTION = typer.Option(
+    "1",
+    "--disable-nonessential-traffic",
+    envvar="CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+    callback=_validate_toggle,
+    help="Disable Claude Code's non-essential network traffic -- telemetry, "
+    "update checks, error reporting (1 disables it, 0 allows it)",
+)
 AUTO_COMPACT_WINDOW_OPTION = typer.Option(
     "auto",
     "--auto-compact-window",
@@ -380,6 +392,7 @@ def _build_claude_env(
     subagent_model: str,
     effort_level: str,
     attribution_header: str = "0",
+    disable_nonessential_traffic: str = "1",
     auto_compact_window: str = "",
     max_context_tokens: str = "",
 ) -> dict[str, str]:
@@ -399,6 +412,7 @@ def _build_claude_env(
         "CLAUDE_CODE_SUBAGENT_MODEL": subagent_model,
         "CLAUDE_CODE_EFFORT_LEVEL": effort_level,
         "CLAUDE_CODE_ATTRIBUTION_HEADER": attribution_header,
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": disable_nonessential_traffic,
     }
     if api_key:
         env["ANTHROPIC_API_KEY"] = api_key
@@ -434,6 +448,7 @@ def launch_claude(
     subagent_model: str = SUBAGENT_MODEL_OPTION,
     effort_level: str = EFFORT_LEVEL_OPTION,
     attribution_header: str = ATTRIBUTION_HEADER_OPTION,
+    disable_nonessential_traffic: str = DISABLE_NONESSENTIAL_TRAFFIC_OPTION,
     auto_compact_window: str = AUTO_COMPACT_WINDOW_OPTION,
     max_context_tokens: str = MAX_CONTEXT_TOKENS_OPTION,
     dry_run: bool = typer.Option(
@@ -459,6 +474,7 @@ def launch_claude(
         subagent_model=subagent_model,
         effort_level=effort_level,
         attribution_header=attribution_header,
+        disable_nonessential_traffic=disable_nonessential_traffic,
         auto_compact_window=auto_compact_window,
         max_context_tokens=max_context_tokens,
     )
@@ -531,6 +547,7 @@ def shell(
     subagent_model: str = SUBAGENT_MODEL_OPTION,
     effort_level: str = EFFORT_LEVEL_OPTION,
     attribution_header: str = ATTRIBUTION_HEADER_OPTION,
+    disable_nonessential_traffic: str = DISABLE_NONESSENTIAL_TRAFFIC_OPTION,
     auto_compact_window: str = AUTO_COMPACT_WINDOW_OPTION,
     max_context_tokens: str = MAX_CONTEXT_TOKENS_OPTION,
 ) -> None:
@@ -553,6 +570,7 @@ def shell(
         subagent_model=subagent_model,
         effort_level=effort_level,
         attribution_header=attribution_header,
+        disable_nonessential_traffic=disable_nonessential_traffic,
         auto_compact_window=auto_compact_window,
         max_context_tokens=max_context_tokens,
     )

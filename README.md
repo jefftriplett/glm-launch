@@ -88,6 +88,7 @@ uv run glm-launch launch claude
 | `--subagent-model` | `CLAUDE_CODE_SUBAGENT_MODEL` | `glm-4.5-air` | Model used for spawned subagents |
 | `--effort-level` | `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort level for the agent loop: `low`, `medium`, `high`, `xhigh`, `max`, or `ultracode` (see [Effort levels](#effort-levels)) |
 | `--attribution-header` | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `0` | Attribution header toggle (`0` or `1`; `0` disables it) |
+| `--disable-nonessential-traffic` | `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `1` | Disable Claude Code's non-essential traffic — telemetry, update checks, error reporting (`1` disables it, `0` allows it) |
 | `--auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `auto` | Auto-compact context window (`auto`, empty, or a positive integer) |
 | `--max-context-tokens` | `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | `auto` | Maximum context budget (`auto`, empty, or a positive integer) |
 | `--dry-run` | — | `false` | Print the resolved command and masked GLM environment without launching |
@@ -105,6 +106,7 @@ The following env vars are set before exec'ing `claude`:
 - `CLAUDE_CODE_SUBAGENT_MODEL` — from `--subagent-model`
 - `CLAUDE_CODE_EFFORT_LEVEL` — from `--effort-level`
 - `CLAUDE_CODE_ATTRIBUTION_HEADER` — from `--attribution-header`
+- `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` — from `--disable-nonessential-traffic`
 - `CLAUDE_CODE_AUTO_COMPACT_WINDOW` — from `--auto-compact-window` (only when non-empty)
 - `CLAUDE_CODE_MAX_CONTEXT_TOKENS` — from `--max-context-tokens` (only when non-empty)
 
@@ -117,6 +119,17 @@ The following env vars are set before exec'ing `claude`:
 > and `glm-5.3-flash` serve the standard 200K window. Pass an explicit number
 > to override, or an empty string to leave the env vars unset. Run
 > `glm-launch models` to see each model's window.
+
+> [!NOTE]
+> `--disable-nonessential-traffic` defaults to `1`, so Claude Code's
+> non-essential network calls — telemetry, update checks, error reporting —
+> are turned off. That is usually what you want when the session is routed to
+> a third-party endpoint: it keeps the traffic pointed at Z.AI and nowhere
+> else. Because the value is always set, it overrides whatever
+> `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` your shell or `settings.json`
+> already had. Pass `--disable-nonessential-traffic 0` to allow that traffic
+> again — auto-update checks in particular, which you may want when running
+> `claude` from a managed install.
 
 #### Effort levels
 
@@ -176,6 +189,10 @@ uv run glm-launch launch claude \
   --model glm-5.3 \
   --subagent-model glm-4.5-air \
   --default-haiku-model glm-4.5-air
+
+# Allow Claude Code's non-essential traffic (update checks, telemetry),
+# which glm-launch disables by default
+uv run glm-launch launch claude --disable-nonessential-traffic 0
 
 # Pass extra args through to claude
 uv run glm-launch launch claude -- --verbose
@@ -348,6 +365,7 @@ Environment variables:
   CLAUDE_CODE_SUBAGENT_MODEL: (not set)
   CLAUDE_CODE_EFFORT_LEVEL: (not set)
   CLAUDE_CODE_ATTRIBUTION_HEADER: (not set)
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: (not set)
   CLAUDE_CODE_AUTO_COMPACT_WINDOW: (not set)
   CLAUDE_CODE_MAX_CONTEXT_TOKENS: (not set)
 
@@ -375,6 +393,7 @@ All are optional except `GLM_AUTH_TOKEN`. `glm-launch --help` prints this same l
 | `CLAUDE_CODE_SUBAGENT_MODEL` | `launch claude`, `shell` | Model used for spawned subagents |
 | `CLAUDE_CODE_EFFORT_LEVEL` | `launch claude`, `shell` | Validated effort level for the agent loop |
 | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `launch claude`, `shell` | Attribution header toggle (`0` or `1`) |
+| `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `launch claude`, `shell` | Disable telemetry, update checks, and error reporting (`0` or `1`; defaults to `1`) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `launch claude`, `shell` | `auto`, empty, or a positive token count |
 | `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | `launch claude`, `shell` | `auto`, empty, or a positive token count |
 

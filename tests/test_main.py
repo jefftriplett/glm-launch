@@ -219,6 +219,21 @@ def test_glm_env_vars_flow_through_to_exec_env(monkeypatch) -> None:
     assert captured["env"]["ANTHROPIC_MODEL"] == "glm-5.2"
 
 
+def test_nonessential_traffic_is_disabled_by_default(monkeypatch) -> None:
+    captured = _capture_execvpe(monkeypatch)
+    monkeypatch.setenv("GLM_AUTH_TOKEN", "secret-token")
+
+    result = runner.invoke(main.app, ["claude"])
+
+    assert result.exit_code == 0
+    assert captured["env"]["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] == "1"
+
+    result = runner.invoke(main.app, ["claude", "--disable-nonessential-traffic", "0"])
+
+    assert result.exit_code == 0
+    assert captured["env"]["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] == "0"
+
+
 def test_exec_env_drops_inherited_anthropic_api_key(monkeypatch) -> None:
     captured = _capture_execvpe(monkeypatch)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "inherited-key")
@@ -298,6 +313,7 @@ def test_extra_args_pass_through_to_claude(monkeypatch) -> None:
         ("--max-context-tokens", "lots", "must be a positive integer"),
         ("--effort-level", "extreme", "must be one of"),
         ("--attribution-header", "yes", "must be 0 or 1"),
+        ("--disable-nonessential-traffic", "yes", "must be 0 or 1"),
     ],
 )
 def test_claude_rejects_invalid_settings(option: str, value: str, message: str) -> None:
