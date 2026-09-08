@@ -13,37 +13,48 @@ Requires Python 3.13+.
 export GLM_AUTH_TOKEN="your-zai-api-key"
 
 # 2. Launch Claude Code routed through Z.AI (defaults to glm-5.3)
-uv run glm-launch              # bare command defaults to `claude`
-uv run glm-launch claude       # same thing, explicit
+glm-launch              # bare command defaults to `claude`
+glm-launch claude       # same thing, explicit
 
 # Pick a different model
-uv run glm-launch --model glm-5.3-flash            # bare options also go to `claude`
-uv run glm-launch claude --model glm-5.3-flash     # multimodal, low cost, 3x quota
-uv run glm-launch claude --model "glm-5.2[1m]"     # previous flagship, 1M tier
-uv run glm-launch claude --model glm-4.5-air       # cheap
+glm-launch --model glm-5.3-flash            # bare options also go to `claude`
+glm-launch claude --model glm-5.3-flash     # multimodal, low cost, 3x quota
+glm-launch claude --model "glm-5.2[1m]"     # previous flagship, 1M tier
+glm-launch claude --model glm-4.5-air       # cheap
 
 # Bootstrap your current shell so a plain `claude` uses Z.AI
-eval "$(uv run glm-launch shell)"
+eval "$(glm-launch shell)"
 claude
 
 # See available models (built-in list, or --remote for the live API list)
-uv run glm-launch models
-uv run glm-launch models --remote
+glm-launch models
+glm-launch models --remote
 
 # Sanity-check connectivity / latency
-uv run glm-launch bench
+glm-launch bench
 ```
 
-> Examples use the installed `glm-launch` entrypoint. Before `uv sync` you can run
-> the script directly with `uv run src/main.py …` — the two are interchangeable.
+> Examples use the installed `glm-launch` entrypoint. From a clone, prefix them
+> with `uv run` (`uv run glm-launch …`) or run the script directly with
+> `uv run src/main.py …` — the three are interchangeable.
 
 ## Installation
 
 ```bash
-uv sync
+# Recommended: an isolated install with `glm-launch` on your PATH
+uv tool install glm-launch
+
+# Or into the current environment
+pip install glm-launch
 ```
 
-This installs a `glm-launch` entrypoint. Run commands via `uv run glm-launch <command>`, or `uv tool install .` to get `glm-launch` on your PATH directly. You can also run the script without installing via `uv run src/main.py <command>`.
+Either way you get a `glm-launch` command you can run directly.
+
+### From a clone
+
+Working on glm-launch itself? `uv sync` installs the project and its dev
+dependencies into a local `.venv`; run it as `uv run glm-launch <command>`, or
+without installing anything as `uv run src/main.py <command>`.
 
 ### Run without cloning (`uvx`)
 
@@ -69,7 +80,7 @@ Launch [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with GLM en
 > The `launch` prefix is optional: `glm-launch claude` is equivalent to `glm-launch launch claude`, and a bare `glm-launch` defaults to `claude`. Claude options can also be passed directly, so `glm-launch --model glm-5.3-flash` is equivalent to `glm-launch claude --model glm-5.3-flash`.
 
 ```bash
-uv run glm-launch launch claude
+glm-launch launch claude
 ```
 
 **Options:**
@@ -159,54 +170,54 @@ Claude Code.
 
 ```bash
 # Use defaults (glm-5.3 with 1M context, Z.AI endpoint)
-uv run glm-launch launch claude
+glm-launch launch claude
 
 # The flagship (the default) — 1M context is standard on glm-5.3
-uv run glm-launch launch claude --model glm-5.3
+glm-launch launch claude --model glm-5.3
 
 # Native multimodal (video/image/text/file) at a much lower cost,
 # with 3x the coding-plan quota of glm-5.3
-uv run glm-launch launch claude --model glm-5.3-flash
+glm-launch launch claude --model glm-5.3-flash
 
 # Previous flagship with the 1M context tier (the coding plan
 # auto-routes glm-5.2/glm-5.1 requests to glm-5.3)
-uv run glm-launch launch claude --model "glm-5.2[1m]"
+glm-launch launch claude --model "glm-5.2[1m]"
 
 # Previous flagship on the standard 200K window (cheaper)
-uv run glm-launch launch claude --model glm-5.2
+glm-launch launch claude --model glm-5.2
 
 # Balanced cost/performance coding model
-uv run glm-launch launch claude --model glm-4.7
+glm-launch launch claude --model glm-4.7
 
 # Fast, speed-optimized GLM-5 variant
-uv run glm-launch launch claude --model glm-5-turbo
+glm-launch launch claude --model glm-5-turbo
 
 # Lightweight, low-cost model for cheaper runs
-uv run glm-launch launch claude --model glm-4.5-air
+glm-launch launch claude --model glm-4.5-air
 
 # Tune the model tiers independently (e.g. cheap subagents, flagship main)
-uv run glm-launch launch claude \
+glm-launch launch claude \
   --model glm-5.3 \
   --subagent-model glm-4.5-air \
   --default-haiku-model glm-4.5-air
 
 # Allow Claude Code's non-essential traffic (update checks, telemetry),
 # which glm-launch disables by default
-uv run glm-launch launch claude --disable-nonessential-traffic 0
+glm-launch launch claude --disable-nonessential-traffic 0
 
 # Pass extra args through to claude
-uv run glm-launch launch claude -- --verbose
+glm-launch launch claude -- --verbose
 
 # Inspect the command/env without launching claude
-uv run glm-launch launch claude --dry-run
+glm-launch launch claude --dry-run
 
 # Override via env vars
-GLM_AUTH_TOKEN="my-token" uv run glm-launch launch claude
+GLM_AUTH_TOKEN="my-token" glm-launch launch claude
 ```
 
 `--dry-run` does not require the `claude` binary to be installed.
 
-Run `uv run glm-launch models` to see all valid model names (or `--remote` for the live list).
+Run `glm-launch models` to see all valid model names (or `--remote` for the live list).
 
 If `claude` is not on your PATH, the tool falls back to `~/.claude/local/claude`.
 
@@ -221,7 +232,7 @@ Use [`launch claude`](#launch-claude) instead — it uses Z.AI's Anthropic-compa
 Print `export` lines that bootstrap your current shell with the GLM env vars — without launching anything. Eval the output and a plain `claude` (or any Anthropic SDK tool) will talk to Z.AI.
 
 ```bash
-eval "$(uv run glm-launch shell)"
+eval "$(glm-launch shell)"
 claude
 ```
 
@@ -229,10 +240,10 @@ Accepts the same model/auth options as `launch claude` (`--model`, `--auth-token
 
 ```bash
 # Inspect what would be exported
-uv run glm-launch shell
+glm-launch shell
 
 # Bootstrap with a specific model
-eval "$(uv run glm-launch shell --model glm-5.3-flash)"
+eval "$(glm-launch shell --model glm-5.3-flash)"
 ```
 
 ### `models`
@@ -241,10 +252,10 @@ List Z.AI GLM models. By default prints a built-in, annotated list; `--remote` f
 
 ```bash
 # Built-in list (no token needed)
-uv run glm-launch models
+glm-launch models
 
 # Live list from the API (needs GLM_AUTH_TOKEN)
-uv run glm-launch models --remote
+glm-launch models --remote
 ```
 
 **Options:**
@@ -263,7 +274,7 @@ The live endpoint is the OpenAI-compatible coding PaaS base (`/api/coding/paas/v
 Time a single `/v1/messages` round-trip against the configured GLM endpoint. Useful as a sanity check that your auth token, base URL, and chosen model are reachable.
 
 ```bash
-uv run glm-launch bench
+glm-launch bench
 ```
 
 **Options:**
@@ -295,7 +306,7 @@ that never appears in the API's model list at all. `bench --all` is the check
 that actually calls each one:
 
 ```bash
-uv run glm-launch bench --all
+glm-launch bench --all
 ```
 
 ```
@@ -330,7 +341,7 @@ the network.
 Open the Z.AI usage/quota dashboard in your browser. Coding Plan quotas are tracked in 5-hour and weekly windows, and there is no API for quota data — the dashboard is the only place to see it.
 
 ```bash
-uv run glm-launch usage
+glm-launch usage
 ```
 
 ### `doctor`
@@ -338,7 +349,7 @@ uv run glm-launch usage
 Check your environment for correct setup. Reports on environment variables and binary availability.
 
 ```bash
-uv run glm-launch doctor
+glm-launch doctor
 ```
 
 **Checks performed:**
