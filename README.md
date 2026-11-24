@@ -12,14 +12,14 @@ Requires Python 3.13+.
 # 1. Set your Z.AI auth token
 export GLM_AUTH_TOKEN="your-zai-api-key"
 
-# 2. Launch Claude Code routed through Z.AI (defaults to glm-5.3)
+# 2. Launch Claude Code routed through Z.AI (defaults to glm-5.4[1m])
 glm-launch              # bare command defaults to `claude`
 glm-launch claude       # same thing, explicit
 
 # Pick a different model
 glm-launch --model glm-5.3-flash            # bare options also go to `claude`
 glm-launch claude --model glm-5.3-flash     # multimodal, low cost, 3x quota
-glm-launch claude --model "glm-5.2[1m]"     # previous flagship, 1M tier
+glm-launch claude --model glm-5.3           # previous flagship, 1M native
 glm-launch claude --model glm-4.5-air       # cheap
 
 # Bootstrap your current shell so a plain `claude` uses Z.AI
@@ -87,15 +87,15 @@ glm-launch launch claude
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
-| `--model` / `-m` | — | `glm-5.3` | Model name passed to `claude --model`; `glm-5.3` serves 1M context natively, older models need the `[1m]` suffix for the 1M tier |
+| `--model` / `-m` | — | `glm-5.4[1m]` | Model name passed to `claude --model`; the `[1m]` suffix enables the 1M context tier (`glm-5.3` serves 1M natively) |
 | `--base-url` | `GLM_BASE_URL` | `https://api.z.ai/api/anthropic` | API endpoint |
 | `--api-key` | `GLM_API_KEY` | `""` | API key |
 | `--auth-token` | `GLM_AUTH_TOKEN` | **(required)** | Z.AI auth token |
 | `--api-timeout-ms` | `API_TIMEOUT_MS` | `3000000` | Request timeout in milliseconds (positive integer) |
 | `--default-haiku-model` | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `glm-4.5-air` | Model for Haiku-tier requests |
-| `--default-sonnet-model` | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `glm-5.3` | Model for Sonnet-tier requests |
-| `--default-opus-model` | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `glm-5.3` | Model for Opus-tier requests |
-| `--default-fable-model` | `ANTHROPIC_DEFAULT_FABLE_MODEL` | `glm-5.3` | Model for Fable-tier requests |
+| `--default-sonnet-model` | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `glm-5.4[1m]` | Model for Sonnet-tier requests |
+| `--default-opus-model` | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `glm-5.4[1m]` | Model for Opus-tier requests |
+| `--default-fable-model` | `ANTHROPIC_DEFAULT_FABLE_MODEL` | `glm-5.4[1m]` | Model for Fable-tier requests |
 | `--subagent-model` | `CLAUDE_CODE_SUBAGENT_MODEL` | `glm-4.5-air` | Model used for spawned subagents |
 | `--effort-level` | `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort level for the agent loop: `low`, `medium`, `high`, `xhigh`, `max`, or `ultracode` (see [Effort levels](#effort-levels)) |
 | `--attribution-header` | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `0` | Attribution header toggle (`0` or `1`; `0` disables it) |
@@ -126,8 +126,10 @@ The following env vars are set before exec'ing `claude`:
 > `--model` automatically: `glm-5.3` and the `[1m]` IDs get 1M tokens, most
 > other models 200K, and `glm-4.5`/`glm-4.5-air` 128K (unknown models fall
 > back to 200K). `glm-5.3` serves the 1M window natively; for other models
-> the `[1m]` suffix is what enables Z.AI's 1M context tier — plain `glm-5.2`
-> and `glm-5.3-flash` serve the standard 200K window. Pass an explicit number
+> the `[1m]` suffix is what enables Z.AI's 1M context tier — plain `glm-5.4`,
+> `glm-5.2` and `glm-5.3-flash` serve the standard 200K window. (`[1m]` is a
+> Claude Code convention: Claude Code strips the suffix and sends the bare ID
+> with the `context-1m-2025-08-07` beta header.) Pass an explicit number
 > to override, or an empty string to leave the env vars unset. Run
 > `glm-launch models` to see each model's window.
 
@@ -145,17 +147,19 @@ The following env vars are set before exec'ing `claude`:
 #### Effort levels
 
 Z.AI collapses Claude Code's effort ladder into the model's thinking tiers
-([source](https://docs.z.ai/guides/llm/glm-5.3)):
+([source](https://docs.z.ai/devpack/latest-model)):
 
-| Claude Code effort | GLM-5.3 effort | GLM-5.2 effort |
-|--------------------|----------------|----------------|
+| Claude Code effort | GLM-5.4 / GLM-5.3 effort | GLM-5.2 effort |
+|--------------------|--------------------------|----------------|
 | `low` | `low` (light) | `high` |
 | `medium`, `high` | `high` (enhanced) | `high` |
 | `xhigh`, `max`, `ultracode` | `max` (deep) | `max` |
 
-GLM-5.3 no longer supports disabling thinking entirely — `low` is the
-lightest setting. Z.AI recommends `max` for coding, which is the default
-here. You can also switch mid-session with the `/effort` command in
+Neither GLM-5.4 nor GLM-5.3 can turn thinking off entirely: on GLM-5.4 a
+disabled-thinking request is mapped to `low` (it still thinks lightly), while
+GLM-5.3 returns an error. Z.AI recommends `max` for coding, which is the
+default here. Z.AI notes GLM-5.4 can get caught in long "marathon thinking"
+loops; drop to `high` if that gets in the way. You can also switch mid-session with the `/effort` command in
 Claude Code.
 
 > [!TIP]
@@ -169,10 +173,13 @@ Claude Code.
 **Examples:**
 
 ```bash
-# Use defaults (glm-5.3 with 1M context, Z.AI endpoint)
+# Use defaults (glm-5.4[1m] with 1M context, Z.AI endpoint)
 glm-launch launch claude
 
-# The flagship (the default) — 1M context is standard on glm-5.3
+# The flagship on the standard 200K window
+glm-launch launch claude --model glm-5.4
+
+# Previous flagship — 1M context is standard on glm-5.3
 glm-launch launch claude --model glm-5.3
 
 # Native multimodal (video/image/text/file) at a much lower cost,
@@ -197,7 +204,7 @@ glm-launch launch claude --model glm-4.5-air
 
 # Tune the model tiers independently (e.g. cheap subagents, flagship main)
 glm-launch launch claude \
-  --model glm-5.3 \
+  --model "glm-5.4[1m]" \
   --subagent-model glm-4.5-air \
   --default-haiku-model glm-4.5-air
 
@@ -281,7 +288,7 @@ glm-launch bench
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
-| `--model` / `-m` | — | `glm-5.3` | Model to benchmark |
+| `--model` / `-m` | — | `glm-5.4` | Model to benchmark |
 | `--base-url` | `GLM_BASE_URL` | `https://api.z.ai/api/anthropic` | API endpoint |
 | `--auth-token` | `GLM_AUTH_TOKEN` | **(required)** | Auth token for the endpoint |
 | `--timeout` | — | `30.0` | Request timeout in seconds (must be greater than zero) |
@@ -292,7 +299,7 @@ Sends a minimal 32-token request and prints the round-trip time. Exits non-zero 
 **Example output:**
 
 ```
-  glm-5.3 via https://api.z.ai/api/anthropic
+  glm-5.4 via https://api.z.ai/api/anthropic
   OK (200) in 412ms
 ```
 
@@ -301,26 +308,28 @@ Sends a minimal 32-token request and prints the round-trip time. Exits non-zero 
 `glm-launch models` prints the built-in registry, and `models --remote` lists
 what the API advertises — but neither proves a given ID is callable with *your*
 key. Z.ai rejects an unknown or unentitled model with HTTP 400
-`modelCode: does not exist`, and the `[1m]` context IDs are a naming convention
-that never appears in the API's model list at all. `bench --all` is the check
-that actually calls each one:
+(`[1211][Unknown Model, ...]`, formerly `modelCode: does not exist`), and the
+`[1m]` context IDs never appear in the API's model list at all. `bench --all`
+is the check that actually calls each one. `[1m]` IDs are probed the way
+Claude Code sends them — the bare ID plus the `context-1m-2025-08-07` beta
+header — since the suffixed ID itself is never sent to the API:
 
 ```bash
 glm-launch bench --all
 ```
 
 ```
-  probing 14 models via https://api.z.ai/api/anthropic
+  probing 16 models via https://api.z.ai/api/anthropic
 
-  ok   glm-5.3                200  1980ms
-  FAIL glm-5.3-flash[1m]      400  427ms
-  ok   glm-5.3-flash          200  1686ms
-  SKIP glm-5v-turbo           429  752ms
+  ok   glm-5.4[1m]            200  2342ms
+  ok   glm-5.4                200  1581ms
+  ok   glm-5.3                200  2379ms
+  ok   glm-5.3-flash[1m]      200  1403ms
   ...
-  1 model(s) were rate limited and not verified: glm-5v-turbo
+  SKIP glm-5v-turbo           429  434ms
+  ...
 
-  2 of 14 model(s) failed to resolve.
-  Rejected as `modelCode: does not exist`: glm-5.3-flash[1m], glm-5.2[1m]
+  1 model(s) were rate limited and not verified: glm-5v-turbo
 ```
 
 A `429` is reported as `SKIP`, not a failure — it means the ID resolved but the

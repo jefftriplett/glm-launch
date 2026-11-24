@@ -108,14 +108,19 @@ def launch_main(ctx: typer.Context) -> None:
 
 # Current Z.ai GLM models (API IDs are lowercase). Each entry is
 # (model_id, context_window_tokens, description). glm-5.3 serves a 1M context
-# window natively; for glm-5.3-flash and glm-5.2 the `[1m]` suffix is what
-# enables the 1M tier (billed separately) and the plain ID serves the standard
-# window. Note the `[1m]` IDs are a Z.ai naming convention, not entries in the
-# API's own model list, and some keys get `modelCode: does not exist` for them
-# — `bench --all` is what verifies they really resolve. Kept here so `models`,
-# the auto context defaults, and the help text stay in one place. See https://z.ai/model-api and
+# window natively; for glm-5.4, glm-5.3-flash and glm-5.2 the `[1m]` suffix is
+# what enables the 1M tier and the plain ID serves the standard window.
+#
+# `[1m]` is a Claude Code convention, not a Z.ai model ID: Claude Code strips
+# the suffix and sends the bare ID with the `context-1m-2025-08-07` beta header
+# instead. Sending `glm-5.4[1m]` to the API verbatim is always a 400, so
+# `bench` probes `[1m]` IDs the same way Claude Code calls them (see
+# `_api_request_for`). Kept here so `models`, the auto context defaults, and
+# the help text stay in one place. See https://z.ai/model-api and
 # https://docs.z.ai/devpack/latest-model
 ZAI_MODELS: list[tuple[str, int, str]] = [
+    ("glm-5.4[1m]", 1_000_000, "Flagship (Loop Transformer) with the 1M context tier"),
+    ("glm-5.4", 200_000, "Flagship (Loop Transformer), multimodal, 128K output"),
     ("glm-5.3", 1_000_000, "Flagship — frontier coding, 1M context standard"),
     ("glm-5.3-flash[1m]", 1_000_000, "Native multimodal, 1M context tier enabled"),
     ("glm-5.3-flash", 200_000, "Native multimodal (video/image/text/file), low cost"),
@@ -136,7 +141,7 @@ ZAI_MODELS: list[tuple[str, int, str]] = [
 DEFAULT_CONTEXT_WINDOW = 200_000
 
 # Default model for `bench`; also lets `--all` tell an explicit -m from the default.
-BENCH_DEFAULT_MODEL = "glm-5.3"
+BENCH_DEFAULT_MODEL = "glm-5.4"
 
 
 def _context_window_for(model: str) -> int:
@@ -278,12 +283,11 @@ def _validate_toggle(value: str) -> str:
 # Shared option declarations for `launch claude` and `shell`, so each
 # flag/envvar/default/help lives in exactly one place.
 MODEL_OPTION = typer.Option(
-    "glm-5.3",
+    "glm-5.4[1m]",
     "--model",
     "-m",
-    help="Model name (ANTHROPIC_MODEL, passed to claude --model); "
-    "glm-5.3 serves 1M context natively, older models need the [1m] suffix "
-    "to enable the 1M context tier",
+    help="Model name (ANTHROPIC_MODEL, passed to claude --model); the [1m] "
+    "suffix enables the 1M context tier (glm-5.3 serves 1M natively)",
 )
 BASE_URL_OPTION = typer.Option(
     "https://api.z.ai/api/anthropic",
@@ -309,19 +313,19 @@ DEFAULT_HAIKU_MODEL_OPTION = typer.Option(
     help="Default model for Haiku-tier requests",
 )
 DEFAULT_SONNET_MODEL_OPTION = typer.Option(
-    "glm-5.3",
+    "glm-5.4[1m]",
     "--default-sonnet-model",
     envvar="ANTHROPIC_DEFAULT_SONNET_MODEL",
     help="Default model for Sonnet-tier requests",
 )
 DEFAULT_OPUS_MODEL_OPTION = typer.Option(
-    "glm-5.3",
+    "glm-5.4[1m]",
     "--default-opus-model",
     envvar="ANTHROPIC_DEFAULT_OPUS_MODEL",
     help="Default model for Opus-tier requests",
 )
 DEFAULT_FABLE_MODEL_OPTION = typer.Option(
-    "glm-5.3",
+    "glm-5.4[1m]",
     "--default-fable-model",
     envvar="ANTHROPIC_DEFAULT_FABLE_MODEL",
     help="Default model for Fable-tier requests",
@@ -333,16 +337,18 @@ SUBAGENT_MODEL_OPTION = typer.Option(
     help="Model used for spawned subagents",
 )
 # Z.ai collapses Claude Code's effort ladder into the model's thinking
-# tiers. GLM-5.3 supports low/high/max (thinking cannot be disabled);
+# tiers. GLM-5.4 and GLM-5.3 support low/high/max: low/minimal map to low,
+# medium/high to high, xhigh/max to max. On GLM-5.4 disabling thinking maps to
+# low (it still thinks lightly); GLM-5.3 errors if thinking is disabled.
 # GLM-5.2 only distinguishes high vs max. Z.ai recommends max for coding.
-# See https://docs.z.ai/guides/llm/glm-5.3
+# See https://docs.z.ai/devpack/latest-model
 EFFORT_LEVEL_OPTION = typer.Option(
     "max",
     "--effort-level",
     envvar="CLAUDE_CODE_EFFORT_LEVEL",
     callback=_validate_effort_level,
-    help="Effort level; GLM-5.3 supports low (light), high (enhanced), and "
-    "max (deep) thinking — other Claude Code levels map to the nearest tier "
+    help="Effort level; GLM-5.4 and GLM-5.3 support low (light), high "
+    "(enhanced), and max (deep) thinking — medium maps to high, xhigh to max "
     "(GLM-5.2 only distinguishes high vs max)",
 )
 ATTRIBUTION_HEADER_OPTION = typer.Option(
@@ -703,11 +709,30 @@ class ProbeResult(NamedTuple):
     def unknown_model(self) -> bool:
         """True when Z.ai rejected the model code itself.
 
-        Z.ai answers an unknown or unentitled model with HTTP 400 and
-        `modelCode: does not exist` rather than a 404, so this is the only
-        signal that separates a bad ID from an ordinary request failure.
+        Z.ai answers an unknown or unentitled model with HTTP 400 rather
+        than a 404, so the body is the only signal that separates a bad ID
+        from an ordinary request failure. Older responses said `modelCode:
+        does not exist`; current ones say `[1211][Unknown Model, ...]`.
         """
-        return "does not exist" in self.body
+        return any(marker in self.body for marker in _UNKNOWN_MODEL_MARKERS)
+
+
+# Body fragments Z.ai uses to reject a model ID it does not know.
+_UNKNOWN_MODEL_MARKERS = ("does not exist", "Unknown Model")
+
+# The beta header Claude Code sends in place of a `[1m]` model suffix.
+_CONTEXT_1M_BETA = "context-1m-2025-08-07"
+
+
+def _api_request_for(model: str) -> tuple[str, dict[str, str]]:
+    """Return the (model, extra headers) Claude Code actually sends for `model`.
+
+    Claude Code strips a `[1m]` suffix and adds the 1M-context beta header, so
+    probing the suffixed ID verbatim would test a request that never happens.
+    """
+    if model.endswith("[1m]"):
+        return model.removesuffix("[1m]"), {"anthropic-beta": _CONTEXT_1M_BETA}
+    return model, {}
 
 
 def _probe_model(
@@ -723,9 +748,10 @@ def _probe_model(
     import urllib.request
 
     url = f"{base_url.rstrip('/')}/v1/messages"
+    api_model, extra_headers = _api_request_for(model)
     payload = json.dumps(
         {
-            "model": model,
+            "model": api_model,
             "max_tokens": 32,
             "messages": [{"role": "user", "content": "Reply: ok"}],
         }
@@ -739,6 +765,7 @@ def _probe_model(
                 "x-api-key": auth_token,
                 "content-type": "application/json",
                 "anthropic-version": "2023-06-01",
+                **extra_headers,
             },
             method="POST",
         )
@@ -840,7 +867,7 @@ def bench(
             unknown = [f.model for f in failures if f.unknown_model]
             if unknown:
                 print(
-                    "  Rejected as `modelCode: does not exist`: "
+                    "  Rejected as an unknown model code: "
                     + ", ".join(unknown)
                     + "\n  Z.ai did not accept these IDs for this account; drop "
                     "them from the registry if they stay broken."
@@ -926,7 +953,7 @@ def doctor() -> None:
 
     print()
     print(
-        "Note: [1m]-suffixed models (e.g. glm-5.2[1m]) need a recent Claude "
+        "Note: [1m]-suffixed models (e.g. glm-5.4[1m]) need a recent Claude "
         "Code -- if claude reports the model does not exist, upgrade Claude Code."
     )
 

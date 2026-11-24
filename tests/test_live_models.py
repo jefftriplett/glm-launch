@@ -7,8 +7,10 @@ they are skipped unless `GLM_LIVE_TESTS=1` is set. Run them with:
 
 The offline suite can only prove the registry's arithmetic is self-consistent.
 It cannot prove an ID is real: Z.ai answers an unknown *or unentitled* model
-with HTTP 400 `modelCode: does not exist`, so a `[1m]` tier the plan does not
-cover looks identical to a typo until something calls it.
+with HTTP 400 (`modelCode: does not exist`, or now `[1211][Unknown Model]`),
+so a `[1m]` tier the plan does not cover looks identical to a typo until
+something calls it. `[1m]` IDs are probed the way Claude Code sends them: the
+bare ID plus the `context-1m-2025-08-07` beta header.
 """
 
 from __future__ import annotations

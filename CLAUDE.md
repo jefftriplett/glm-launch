@@ -32,7 +32,7 @@ uv run src/main.py launch claude -- --verbose
 # Time a request against the configured GLM endpoint
 uv run src/main.py bench
 
-# Verify every registry model ID actually resolves (catches bad `[1m]` IDs)
+# Verify every registry model ID actually resolves ([1m] IDs are probed as Claude Code sends them)
 uv run src/main.py bench --all
 
 # List known Z.ai GLM models (built-in list)

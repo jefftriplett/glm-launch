@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import re
 import sys
 import urllib.request
@@ -36,6 +37,8 @@ def _claude_env(**overrides: str) -> dict[str, str]:
 
 
 def test_context_window_for_known_and_custom_models() -> None:
+    assert main._context_window_for("glm-5.4[1m]") == 1_000_000
+    assert main._context_window_for("glm-5.4") == 200_000
     assert main._context_window_for("glm-5.3") == 1_000_000
     assert main._context_window_for("glm-5.2[1m]") == 1_000_000
     assert main._context_window_for("glm-5.2") == 200_000
@@ -91,6 +94,7 @@ def test_models_command_lists_known_models() -> None:
     result = runner.invoke(main.app, ["models"])
 
     assert result.exit_code == 0
+    assert "glm-5.4[1m]" in result.stdout
     assert "glm-5.3" in result.stdout
     assert "glm-5.2[1m]" in result.stdout
     assert "glm-4.5-air" in result.stdout
@@ -247,14 +251,16 @@ def test_exec_env_drops_inherited_anthropic_api_key(monkeypatch) -> None:
     assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "secret-token"
 
 
-def test_default_launch_uses_glm53_with_1m_context(monkeypatch) -> None:
+def test_default_launch_uses_glm54_with_1m_context(monkeypatch) -> None:
     captured = _capture_execvpe(monkeypatch)
     monkeypatch.setenv("GLM_AUTH_TOKEN", "secret-token")
 
     result = runner.invoke(main.app, ["claude"])
 
     assert result.exit_code == 0
-    assert captured["env"]["ANTHROPIC_MODEL"] == "glm-5.3"
+    assert captured["env"]["ANTHROPIC_MODEL"] == "glm-5.4[1m]"
+    for tier in ("SONNET", "OPUS", "FABLE"):
+        assert captured["env"][f"ANTHROPIC_DEFAULT_{tier}_MODEL"] == "glm-5.4[1m]"
     assert captured["env"]["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == "1000000"
     assert captured["env"]["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "1000000"
     assert captured["env"]["CLAUDE_CODE_EFFORT_LEVEL"] == "max"
@@ -264,7 +270,11 @@ def test_older_models_still_launch_with_their_context_windows(monkeypatch) -> No
     captured = _capture_execvpe(monkeypatch)
     monkeypatch.setenv("GLM_AUTH_TOKEN", "secret-token")
 
-    for model, window in [("glm-5.2[1m]", "1000000"), ("glm-5.2", "200000")]:
+    for model, window in [
+        ("glm-5.3", "1000000"),
+        ("glm-5.2[1m]", "1000000"),
+        ("glm-5.2", "200000"),
+    ]:
         result = runner.invoke(main.app, ["claude", "--model", model])
 
         assert result.exit_code == 0
@@ -399,6 +409,35 @@ def test_probe_model_reports_unknown_model_code(monkeypatch) -> None:
     assert "does not exist" in result.body
 
 
+def test_probe_model_sends_1m_ids_the_way_claude_code_does(monkeypatch) -> None:
+    """Claude Code strips `[1m]` and sends the 1M beta header instead."""
+    sent: list[urllib.request.Request] = []
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_urlopen(req, *args, **kwargs):
+        sent.append(req)
+        return FakeResponse()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    url = "https://api.z.ai/api/anthropic"
+    main._probe_model("glm-5.4[1m]", url, "t", 5.0)
+    main._probe_model("glm-5.4", url, "t", 5.0)
+
+    one_m, plain = sent
+    assert json.loads(one_m.data)["model"] == "glm-5.4"
+    assert one_m.get_header("Anthropic-beta") == "context-1m-2025-08-07"
+    assert json.loads(plain.data)["model"] == "glm-5.4"
+    assert plain.get_header("Anthropic-beta") is None
+
+
 def test_probe_model_reports_success(monkeypatch) -> None:
     class FakeResponse:
         status = 200
@@ -441,9 +480,18 @@ def test_probe_result_classifies_throttling_and_unknown_models() -> None:
     unknown = main.ProbeResult(
         "glm-5.2[1m]", False, "400", 10, '{"message":"modelCode: does not exist"}'
     )
+    unknown_1211 = main.ProbeResult(
+        "glm-9",
+        False,
+        "400",
+        10,
+        '{"error":{"code":"1211","message":"[1211][Unknown Model, please check '
+        'the model code.]"}}',
+    )
 
     assert throttled.throttled and not throttled.unknown_model
     assert unknown.unknown_model and not unknown.throttled
+    assert unknown_1211.unknown_model
 
 
 def test_bench_all_does_not_fail_on_rate_limited_models(monkeypatch) -> None:
@@ -474,7 +522,7 @@ def test_bench_all_only_blames_model_code_when_the_api_said_so(monkeypatch) -> N
     result = runner.invoke(main.app, ["bench", "--all", "--auth-token", "t"])
 
     assert result.exit_code == 1
-    assert "does not exist" not in result.stdout
+    assert "unknown model code" not in result.stdout
 
 
 def test_probe_model_returns_result_for_invalid_url() -> None:
