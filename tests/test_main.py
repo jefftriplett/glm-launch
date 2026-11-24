@@ -261,6 +261,8 @@ def test_default_launch_uses_glm54_with_1m_context(monkeypatch) -> None:
     assert captured["env"]["ANTHROPIC_MODEL"] == "glm-5.4[1m]"
     for tier in ("SONNET", "OPUS", "FABLE"):
         assert captured["env"][f"ANTHROPIC_DEFAULT_{tier}_MODEL"] == "glm-5.4[1m]"
+    assert captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "glm-5.3-flash[1m]"
+    assert captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"] == "glm-5.3-flash[1m]"
     assert captured["env"]["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == "1000000"
     assert captured["env"]["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "1000000"
     assert captured["env"]["CLAUDE_CODE_EFFORT_LEVEL"] == "max"

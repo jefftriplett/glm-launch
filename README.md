@@ -92,11 +92,11 @@ glm-launch launch claude
 | `--api-key` | `GLM_API_KEY` | `""` | API key |
 | `--auth-token` | `GLM_AUTH_TOKEN` | **(required)** | Z.AI auth token |
 | `--api-timeout-ms` | `API_TIMEOUT_MS` | `3000000` | Request timeout in milliseconds (positive integer) |
-| `--default-haiku-model` | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `glm-4.5-air` | Model for Haiku-tier requests |
+| `--default-haiku-model` | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `glm-5.3-flash[1m]` | Model for Haiku-tier requests |
 | `--default-sonnet-model` | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `glm-5.4[1m]` | Model for Sonnet-tier requests |
 | `--default-opus-model` | `ANTHROPIC_DEFAULT_OPUS_MODEL` | `glm-5.4[1m]` | Model for Opus-tier requests |
 | `--default-fable-model` | `ANTHROPIC_DEFAULT_FABLE_MODEL` | `glm-5.4[1m]` | Model for Fable-tier requests |
-| `--subagent-model` | `CLAUDE_CODE_SUBAGENT_MODEL` | `glm-4.5-air` | Model used for spawned subagents |
+| `--subagent-model` | `CLAUDE_CODE_SUBAGENT_MODEL` | `glm-5.3-flash[1m]` | Model used for spawned subagents |
 | `--effort-level` | `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort level for the agent loop: `low`, `medium`, `high`, `xhigh`, `max`, or `ultracode` (see [Effort levels](#effort-levels)) |
 | `--attribution-header` | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `0` | Attribution header toggle (`0` or `1`; `0` disables it) |
 | `--disable-nonessential-traffic` | `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `1` | Disable Claude Code's non-essential traffic — telemetry, update checks, error reporting (`1` disables it, `0` allows it) |
@@ -159,13 +159,17 @@ Neither GLM-5.4 nor GLM-5.3 can turn thinking off entirely: on GLM-5.4 a
 disabled-thinking request is mapped to `low` (it still thinks lightly), while
 GLM-5.3 returns an error. Z.AI recommends `max` for coding, which is the
 default here. Z.AI notes GLM-5.4 can get caught in long "marathon thinking"
-loops; drop to `high` if that gets in the way. You can also switch mid-session with the `/effort` command in
-Claude Code.
+loops; drop to `high` if that gets in the way. You can also switch
+mid-session with the `/effort` command in Claude Code.
 
 > [!TIP]
-> The GLM coding models are **text-only** — pasting images into Claude Code
-> won't work through Z.AI. Coding Plan subscribers get image understanding via
-> Z.AI's Vision MCP server (backed by `glm-4.6v`) instead; see
+> `glm-5.4` and `glm-5.3-flash` are natively multimodal, so images pasted or
+> read into Claude Code work with the defaults (the main, Sonnet, Opus, and
+> Fable tiers run `glm-5.4[1m]`; Haiku and subagents run `glm-5.3-flash[1m]`).
+> `glm-5.3` and the older text models (`glm-5.2`, `glm-4.7`, `glm-4.5-air`,
+> ...) can't see images — and may describe one confidently anyway, so don't
+> trust their answers about one. With those, use Z.AI's Vision MCP server
+> (backed by `glm-4.6v`); see
 > [#3](https://github.com/jefftriplett/glm-launch/issues/3). Also note that
 > Team Plan API keys are separate from regular Z.AI keys — only a Team key
 > draws Team quota, so a mismatched key can look like an auth failure.
@@ -202,7 +206,7 @@ glm-launch launch claude --model glm-5-turbo
 # Lightweight, low-cost model for cheaper runs
 glm-launch launch claude --model glm-4.5-air
 
-# Tune the model tiers independently (e.g. cheap subagents, flagship main)
+# Tune the model tiers independently (e.g. cheapest text-only subagents)
 glm-launch launch claude \
   --model "glm-5.4[1m]" \
   --subagent-model glm-4.5-air \

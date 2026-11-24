@@ -122,7 +122,7 @@ ZAI_MODELS: list[tuple[str, int, str]] = [
     ("glm-5.4[1m]", 1_000_000, "Flagship (Loop Transformer) with the 1M context tier"),
     ("glm-5.4", 200_000, "Flagship (Loop Transformer), multimodal, 128K output"),
     ("glm-5.3", 1_000_000, "Flagship — frontier coding, 1M context standard"),
-    ("glm-5.3-flash[1m]", 1_000_000, "Native multimodal, 1M context tier enabled"),
+    ("glm-5.3-flash[1m]", 1_000_000, "Multimodal, 1M tier (default haiku/subagents)"),
     ("glm-5.3-flash", 200_000, "Native multimodal (video/image/text/file), low cost"),
     ("glm-5.2[1m]", 1_000_000, "Flagship with the 1M context tier enabled"),
     ("glm-5.2", 200_000, "Flagship (coding plan routes this to glm-5.3)"),
@@ -134,7 +134,7 @@ ZAI_MODELS: list[tuple[str, int, str]] = [
     ("glm-4.6", 200_000, "Strong coding model"),
     ("glm-4.6v", 128_000, "Vision model (backs Z.ai's Vision MCP server)"),
     ("glm-4.5", 128_000, "Previous-gen general model"),
-    ("glm-4.5-air", 128_000, "Lightweight, low-cost (good for subagents/haiku tier)"),
+    ("glm-4.5-air", 128_000, "Lightweight, low-cost, text-only"),
 ]
 
 # Conservative fallback for model IDs not in the registry.
@@ -307,7 +307,7 @@ API_TIMEOUT_MS_OPTION = typer.Option(
     help="API request timeout in milliseconds",
 )
 DEFAULT_HAIKU_MODEL_OPTION = typer.Option(
-    "glm-4.5-air",
+    "glm-5.3-flash[1m]",
     "--default-haiku-model",
     envvar="ANTHROPIC_DEFAULT_HAIKU_MODEL",
     help="Default model for Haiku-tier requests",
@@ -331,7 +331,7 @@ DEFAULT_FABLE_MODEL_OPTION = typer.Option(
     help="Default model for Fable-tier requests",
 )
 SUBAGENT_MODEL_OPTION = typer.Option(
-    "glm-4.5-air",
+    "glm-5.3-flash[1m]",
     "--subagent-model",
     envvar="CLAUDE_CODE_SUBAGENT_MODEL",
     help="Model used for spawned subagents",
