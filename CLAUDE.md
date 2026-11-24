@@ -41,6 +41,10 @@ uv run src/main.py models
 # Fetch the live model list from the Z.ai API (needs GLM_AUTH_TOKEN)
 uv run src/main.py models --remote
 
+# Register Z.ai's Coding Plan MCP servers (web search, web reader, zread) with Claude Code
+uv run src/main.py mcp install --dry-run
+uv run src/main.py mcp list
+
 # Bootstrap the current shell with GLM env vars (so a plain `claude` uses Z.ai)
 eval "$(uv run src/main.py shell)"
 
@@ -59,5 +63,7 @@ Single-module project with entry point at `src/main.py` (the installed `glm-laun
 
 - **claude** — Validates constrained settings, sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_DEFAULT_*_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`, `CLAUDE_CODE_ATTRIBUTION_HEADER`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` env vars from GLM settings, then passes the `--model` flag. Falls back to `~/.claude/local/claude` if not on PATH; `--dry-run` works without an installed binary.
 - **codex** — Disabled. Z.ai exposes only Anthropic Messages and OpenAI Chat Completions, but current codex requires the OpenAI Responses API (no `/responses` endpoint → 404). The command prints an explanation and exits 1.
+
+- **mcp** — `install`/`uninstall`/`list` subcommands that wrap `claude mcp add|remove|get` for the servers in `ZAI_MCP_SERVERS` (HTTP, `Authorization: Bearer $GLM_AUTH_TOKEN`). Only `user` and `local` scopes are allowed (`project` would commit the token). Vision MCP is deliberately excluded since the default models read images natively.
 
 All providers exec the underlying binary via `os.execvpe()` for full stdio passthrough.

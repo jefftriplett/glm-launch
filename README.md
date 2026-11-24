@@ -32,6 +32,9 @@ glm-launch models --remote
 
 # Sanity-check connectivity / latency
 glm-launch bench
+
+# Register Z.AI's web search, web reader, and zread MCP servers with Claude Code
+glm-launch mcp install
 ```
 
 > Examples use the installed `glm-launch` entrypoint. From a clone, prefix them
@@ -179,9 +182,9 @@ mid-session with the `/effort` command in Claude Code.
 > Fable tiers run `glm-5.4[1m]`; Haiku and subagents run `glm-5.3-flash[1m]`).
 > `glm-5.3` and the older text models (`glm-5.2`, `glm-4.7`, `glm-4.5-air`,
 > ...) can't see images — and may describe one confidently anyway, so don't
-> trust their answers about one. With those, use Z.AI's Vision MCP server
-> (backed by `glm-4.6v`); see
-> [#3](https://github.com/jefftriplett/glm-launch/issues/3). Also note that
+> trust their answers about one. With those, set up Z.AI's
+> [Vision MCP server](https://docs.z.ai/devpack/mcp/vision-mcp-server)
+> (backed by `glm-4.6v`) by hand; `glm-launch mcp` doesn't install it. Also note that
 > Team Plan API keys are separate from regular Z.AI keys — only a Team key
 > draws Team quota, so a mismatched key can look like an auth failure.
 
@@ -360,6 +363,49 @@ GLM_LIVE_TESTS=1 uv run pytest -m live -v
 These are skipped by default (and in CI) since they need a real token and hit
 the network.
 
+### `mcp`
+
+Register Z.AI's Coding Plan MCP servers with Claude Code, so a GLM session can
+search the web, read pages, and browse GitHub repos. The servers come with the
+plan; searches and page reads count against its monthly MCP quota.
+
+| Server | Tools | What it does |
+|--------|-------|--------------|
+| `web-search-prime` | `webSearchPrime` | Web search with real-time results |
+| `web-reader` | `webReader` | Fetches a URL as title, main content, metadata, and links |
+| `zread` | `search_doc`, `get_repo_structure`, `read_file` | Docs, structure, and file contents of public GitHub repos |
+
+```bash
+glm-launch mcp install                 # register all three (user scope)
+glm-launch mcp install zread           # or just some of them
+glm-launch mcp install --force         # replace ones already registered
+glm-launch mcp install --dry-run       # print the `claude mcp add` commands
+glm-launch mcp list                    # which are registered, and do they connect
+glm-launch mcp uninstall web-reader    # remove one (or all, with no names)
+```
+
+`install` runs `claude mcp add -t http` for each server with an
+`Authorization: Bearer` header built from `GLM_AUTH_TOKEN` (`--auth-token`
+works too). Servers that are already registered are left alone unless you pass
+`--force`. `--scope` takes `user` (the default, all projects) or `local` (this
+project, private to you). `project` isn't offered, because it would write your
+token into a `.mcp.json` meant to be committed. The token is masked in
+`--dry-run` output.
+
+`list` runs `claude mcp get` for each server, which also health-checks it:
+
+```
+Z.ai Coding Plan MCP servers:
+  web-search-prime  ✔ Connected
+    Web search with real-time results (webSearchPrime)
+    https://api.z.ai/api/mcp/web_search_prime/mcp
+  web-reader        not installed
+  ...
+```
+
+zread only knows repos it has indexed; a small or new repo may come back as not
+found.
+
 ### `usage`
 
 Open the Z.AI usage/quota dashboard in your browser. Coding Plan quotas are tracked in 5-hour and weekly windows, and there is no API for quota data — the dashboard is the only place to see it.
@@ -418,7 +464,7 @@ All are optional except `GLM_AUTH_TOKEN`. `glm-launch --help` prints this same l
 |----------|---------|-------------|
 | `GLM_BASE_URL` | `launch claude`, `shell` | API base URL |
 | `GLM_API_KEY` | `launch claude`, `shell` | API key |
-| `GLM_AUTH_TOKEN` | `launch claude`, `shell`, `bench`, `models --remote` | Z.AI auth token (required) |
+| `GLM_AUTH_TOKEN` | `launch claude`, `shell`, `bench`, `models --remote`, `mcp install` | Z.AI auth token (required) |
 | `GLM_MODELS_URL` | `models --remote` | PaaS models endpoint |
 | `API_TIMEOUT_MS` | `launch claude`, `shell` | Request timeout in milliseconds (positive integer) |
 | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `launch claude`, `shell` | Model for Haiku-tier requests |

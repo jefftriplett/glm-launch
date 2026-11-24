@@ -966,6 +966,215 @@ def doctor() -> None:
 
 
 # ---------------------------------------------------------------------------
+# mcp
+# ---------------------------------------------------------------------------
+
+mcp_app = typer.Typer(
+    help="Register Z.ai's Coding Plan MCP servers (web search, web reader, "
+    "zread) with Claude Code.",
+    no_args_is_help=True,
+)
+app.add_typer(mcp_app, name="mcp")
+
+# Z.ai's remote MCP servers for GLM Coding Plan users, as (name, url,
+# description). Names match the ones Z.ai's docs use with `claude mcp add`.
+# Searches and page reads draw on the plan's monthly MCP quota. The Vision MCP
+# server is left out on purpose: the default models (glm-5.4, glm-5.3-flash)
+# read images natively. See https://docs.z.ai/devpack/mcp/search-mcp-server,
+# https://docs.z.ai/devpack/mcp/reader-mcp-server and
+# https://docs.z.ai/devpack/mcp/zread-mcp-server
+ZAI_MCP_SERVERS: list[tuple[str, str, str]] = [
+    (
+        "web-search-prime",
+        "https://api.z.ai/api/mcp/web_search_prime/mcp",
+        "Web search with real-time results (webSearchPrime)",
+    ),
+    (
+        "web-reader",
+        "https://api.z.ai/api/mcp/web_reader/mcp",
+        "Fetch a URL as title, main content, metadata, and links (webReader)",
+    ),
+    (
+        "zread",
+        "https://api.z.ai/api/mcp/zread/mcp",
+        "GitHub repo docs, structure, and file contents (search_doc, "
+        "get_repo_structure, read_file)",
+    ),
+]
+
+# `project` scope is not offered: it writes the server, auth header included,
+# into a .mcp.json meant to be committed.
+_MCP_SCOPES = ("user", "local")
+
+MCP_NAMES_ARGUMENT = typer.Argument(
+    None,
+    help="Servers to act on (default: all). One or more of: "
+    + ", ".join(name for name, _, _ in ZAI_MCP_SERVERS),
+    show_default=False,
+)
+MCP_SCOPE_OPTION = typer.Option(
+    "user",
+    "--scope",
+    "-s",
+    help="Claude Code config scope: user (all projects) or local (this "
+    "project, private to you)",
+)
+MCP_DRY_RUN_OPTION = typer.Option(
+    False, "--dry-run", help="Print the claude commands without running them"
+)
+
+
+def _select_mcp_servers(names: list[str] | None) -> list[tuple[str, str, str]]:
+    """Resolve requested server names, or every server when none are given."""
+    if not names:
+        return list(ZAI_MCP_SERVERS)
+    known = {server[0]: server for server in ZAI_MCP_SERVERS}
+    unknown = [name for name in names if name not in known]
+    if unknown:
+        raise typer.BadParameter(
+            f"unknown MCP server(s): {', '.join(unknown)}; choose from "
+            + ", ".join(known),
+            param_hint="NAMES",
+        )
+    return [known[name] for name in dict.fromkeys(names)]
+
+
+def _validate_mcp_scope(scope: str) -> str:
+    if scope not in _MCP_SCOPES:
+        raise typer.BadParameter(
+            f"must be one of: {', '.join(_MCP_SCOPES)}", param_hint="--scope"
+        )
+    return scope
+
+
+def _mcp_add_args(
+    binary: str, name: str, url: str, scope: str, token: str
+) -> list[str]:
+    # The header goes on argv rather than through `claude mcp add-json -`,
+    # because Claude Code refuses to read that JSON from stdin when run from
+    # inside a Claude Code session.
+    return [
+        binary, "mcp", "add", "-s", scope, "-t", "http", name, url,
+        "--header", f"Authorization: Bearer {token}",
+    ]  # fmt: skip
+
+
+def _print_mcp_command(args: list[str], token: str) -> None:
+    import shlex
+
+    shown = [arg.replace(token, _mask(token)) if token else arg for arg in args]
+    print("  " + shlex.join(shown))
+
+
+def _run_claude(args: list[str]) -> tuple[int, str]:
+    """Run a claude subcommand, returning (exit code, combined output)."""
+    import subprocess
+
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return 1, str(e)
+    return result.returncode, (result.stdout + result.stderr).strip()
+
+
+@mcp_app.command("install")
+def mcp_install(
+    names: list[str] | None = MCP_NAMES_ARGUMENT,
+    auth_token: str = AUTH_TOKEN_OPTION,
+    scope: str = MCP_SCOPE_OPTION,
+    force: bool = typer.Option(
+        False, "--force", help="Replace servers that are already registered"
+    ),
+    dry_run: bool = MCP_DRY_RUN_OPTION,
+) -> None:
+    """Register Z.ai's MCP servers with Claude Code (claude mcp add)."""
+    servers = _select_mcp_servers(names)
+    _validate_mcp_scope(scope)
+    binary = _find_binary("claude", "~/.claude/local/claude", required=not dry_run)
+
+    if dry_run:
+        print("Dry run:")
+        for name, url, _ in servers:
+            if force:
+                _print_mcp_command([binary, "mcp", "remove", "-s", scope, name], "")
+            _print_mcp_command(
+                _mcp_add_args(binary, name, url, scope, auth_token), auth_token
+            )
+        return
+
+    failed = False
+    for name, url, _ in servers:
+        if force:
+            _run_claude([binary, "mcp", "remove", "-s", scope, name])
+        code, output = _run_claude(_mcp_add_args(binary, name, url, scope, auth_token))
+        if code == 0:
+            print(f"  added    {name:<17} {url}")
+        elif "already exists" in output:
+            print(f"  exists   {name:<17} (use --force to replace it)")
+        else:
+            failed = True
+            print(
+                f"  FAILED   {name:<17} {output.replace(auth_token, _mask(auth_token))}"
+            )
+
+    if failed:
+        raise typer.Exit(code=1)
+    print(
+        f"\nCheck them with `glm-launch mcp list` or `claude mcp list` ({scope} scope)."
+    )
+
+
+@mcp_app.command("uninstall")
+def mcp_uninstall(
+    names: list[str] | None = MCP_NAMES_ARGUMENT,
+    scope: str = MCP_SCOPE_OPTION,
+    dry_run: bool = MCP_DRY_RUN_OPTION,
+) -> None:
+    """Remove Z.ai's MCP servers from Claude Code (claude mcp remove)."""
+    servers = _select_mcp_servers(names)
+    _validate_mcp_scope(scope)
+    binary = _find_binary("claude", "~/.claude/local/claude", required=not dry_run)
+
+    if dry_run:
+        print("Dry run:")
+        for name, _, _ in servers:
+            _print_mcp_command([binary, "mcp", "remove", "-s", scope, name], "")
+        return
+
+    for name, _, _ in servers:
+        code, _ = _run_claude([binary, "mcp", "remove", "-s", scope, name])
+        status = "removed " if code == 0 else "missing "
+        print(f"  {status} {name}")
+
+
+@mcp_app.command("list")
+def mcp_list() -> None:
+    """Show Z.ai's MCP servers and whether Claude Code has each registered."""
+    binary = _find_binary("claude", "~/.claude/local/claude", required=False)
+    installed_any = False
+    print("Z.ai Coding Plan MCP servers:")
+    for name, url, description in ZAI_MCP_SERVERS:
+        # `claude mcp get` exits non-zero for an unknown name and health-checks
+        # a known one, so its output also says whether the server connects.
+        code, output = _run_claude([binary, "mcp", "get", name])
+        if code != 0:
+            state = "not installed"
+        else:
+            installed_any = True
+            status = next(
+                (line.split(":", 1)[1].strip() for line in output.splitlines()
+                 if line.strip().startswith("Status:")),
+                "installed",
+            )  # fmt: skip
+            state = status
+        print(f"  {name:<17} {state}")
+        print(f"    {description}")
+        print(f"    {url}")
+    if not installed_any:
+        print("\nRun `glm-launch mcp install` to register them.")
+
+
+# ---------------------------------------------------------------------------
 # Top-level provider aliases
 # ---------------------------------------------------------------------------
 

@@ -533,3 +533,131 @@ def test_probe_model_returns_result_for_invalid_url() -> None:
 
     assert result.ok is False
     assert "invalid URL" in result.status
+
+
+# ---------------------------------------------------------------------------
+# mcp
+# ---------------------------------------------------------------------------
+
+MCP_TOKEN = "zai-secret-token-123456"
+
+
+def _fake_claude(monkeypatch, responses=None):
+    """Stub claude resolution and record every `claude mcp ...` call."""
+    calls: list[list[str]] = []
+    monkeypatch.setattr(main, "_find_binary", lambda *a, **k: "/usr/bin/claude")
+
+    def fake_run(args):
+        calls.append(args)
+        if responses:
+            return responses(args)
+        return 0, ""
+
+    monkeypatch.setattr(main, "_run_claude", fake_run)
+    return calls
+
+
+def test_mcp_install_registers_every_server_with_bearer_header(monkeypatch) -> None:
+    calls = _fake_claude(monkeypatch)
+
+    result = runner.invoke(main.app, ["mcp", "install", "--auth-token", MCP_TOKEN])
+
+    assert result.exit_code == 0
+    assert len(calls) == len(main.ZAI_MCP_SERVERS)
+    for call, (name, url, _) in zip(calls, main.ZAI_MCP_SERVERS, strict=True):
+        assert call == [
+            "/usr/bin/claude", "mcp", "add", "-s", "user", "-t", "http", name, url,
+            "--header", f"Authorization: Bearer {MCP_TOKEN}",
+        ]  # fmt: skip
+    assert MCP_TOKEN not in result.stdout
+
+
+def test_mcp_install_dry_run_masks_token_and_runs_nothing(monkeypatch) -> None:
+    calls = _fake_claude(monkeypatch)
+
+    result = runner.invoke(
+        main.app, ["mcp", "install", "zread", "--dry-run", "--auth-token", MCP_TOKEN]
+    )
+
+    assert result.exit_code == 0
+    assert calls == []
+    assert "zread" in result.stdout
+    assert "web-reader" not in result.stdout
+    assert MCP_TOKEN not in result.stdout
+    assert "zai-***" in result.stdout
+
+
+def test_mcp_install_skips_existing_and_fails_on_errors(monkeypatch) -> None:
+    def responses(args):
+        name = args[7]
+        if name == "zread":
+            return 1, "MCP server zread already exists in user config"
+        if name == "web-reader":
+            return 1, f"boom with {MCP_TOKEN}"
+        return 0, ""
+
+    _fake_claude(monkeypatch, responses)
+    result = runner.invoke(main.app, ["mcp", "install", "--auth-token", MCP_TOKEN])
+
+    assert result.exit_code == 1
+    assert "use --force to replace it" in result.stdout
+    assert "FAILED" in result.stdout
+    assert MCP_TOKEN not in result.stdout
+
+
+def test_mcp_install_force_removes_before_adding(monkeypatch) -> None:
+    calls = _fake_claude(monkeypatch)
+
+    result = runner.invoke(
+        main.app, ["mcp", "install", "zread", "--force", "--auth-token", MCP_TOKEN]
+    )
+
+    assert result.exit_code == 0
+    assert calls[0] == ["/usr/bin/claude", "mcp", "remove", "-s", "user", "zread"]
+    assert calls[1][:3] == ["/usr/bin/claude", "mcp", "add"]
+
+
+@pytest.mark.parametrize(
+    "args, message",
+    [
+        (["mcp", "install", "bogus"], "unknown MCP server"),
+        (["mcp", "install", "--scope", "project"], "must be one of"),
+    ],
+)
+def test_mcp_install_rejects_bad_names_and_project_scope(
+    monkeypatch, args, message
+) -> None:
+    calls = _fake_claude(monkeypatch)
+
+    result = runner.invoke(main.app, [*args, "--auth-token", MCP_TOKEN])
+
+    assert result.exit_code == 2
+    assert message in ANSI_ESCAPE_RE.sub("", result.output)
+    assert calls == []
+
+
+def test_mcp_uninstall_removes_requested_servers(monkeypatch) -> None:
+    calls = _fake_claude(
+        monkeypatch, lambda args: (0 if args[-1] == "zread" else 1, "")
+    )
+
+    result = runner.invoke(main.app, ["mcp", "uninstall", "zread", "web-reader"])
+
+    assert result.exit_code == 0
+    assert [call[-1] for call in calls] == ["zread", "web-reader"]
+    assert "removed  zread" in result.stdout
+    assert "missing  web-reader" in result.stdout
+
+
+def test_mcp_list_reports_status_per_server(monkeypatch) -> None:
+    def responses(args):
+        if args[-1] == "zread":
+            return 0, "zread:\n  Scope: User config\n  Status: ✔ Connected\n"
+        return 1, 'No MCP server named "x"'
+
+    _fake_claude(monkeypatch, responses)
+    result = runner.invoke(main.app, ["mcp", "list"])
+
+    assert result.exit_code == 0
+    assert "✔ Connected" in result.stdout
+    assert result.stdout.count("not installed") == len(main.ZAI_MCP_SERVERS) - 1
