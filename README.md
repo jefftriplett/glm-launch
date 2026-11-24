@@ -98,7 +98,7 @@ glm-launch launch claude
 | `--default-fable-model` | `ANTHROPIC_DEFAULT_FABLE_MODEL` | `glm-5.4[1m]` | Model for Fable-tier requests |
 | `--subagent-model` | `CLAUDE_CODE_SUBAGENT_MODEL` | `glm-5.3-flash[1m]` | Model used for spawned subagents |
 | `--effort-level` | `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort level for the agent loop: `low`, `medium`, `high`, `xhigh`, `max`, or `ultracode` (see [Effort levels](#effort-levels)) |
-| `--attribution-header` | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `0` | Attribution header toggle (`0` or `1`; `0` disables it) |
+| `--attribution-header` | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `0` | Attribution header toggle (`0` or `1`; `0` disables it; keep it at `0` or prompt caching stops working) |
 | `--disable-nonessential-traffic` | `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `1` | Disable Claude Code's non-essential traffic — telemetry, update checks, error reporting (`1` disables it, `0` allows it) |
 | `--auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `auto` | Auto-compact context window (`auto`, empty, or a positive integer) |
 | `--max-context-tokens` | `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | `auto` | Maximum context budget (`auto`, empty, or a positive integer) |
@@ -143,6 +143,17 @@ The following env vars are set before exec'ing `claude`:
 > already had. Pass `--disable-nonessential-traffic 0` to allow that traffic
 > again — auto-update checks in particular, which you may want when running
 > `claude` from a managed install.
+
+> [!IMPORTANT]
+> `--attribution-header` defaults to `0`, and leaving it there is what makes
+> prompt caching work through Z.AI. With the header on, Claude Code puts a
+> line at the start of the system prompt that changes with every request.
+> Z.AI only reuses its cache when the start of the prompt matches exactly, so
+> every request misses. In a test with two back-to-back sessions, the second
+> one read 13,184 of 13,227 prompt tokens from cache with the header off, and
+> 0 with it on. If caching seems broken (cached-token counts at zero, every
+> turn slow and billed in full), make sure nothing in your shell or
+> `settings.json` turns `CLAUDE_CODE_ATTRIBUTION_HEADER` back on.
 
 #### Effort levels
 
